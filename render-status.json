@@ -1,57 +1,201 @@
 {
-  "test": "Bridge intro, frames 0-299 (10 seconds), 4 parallel chunks",
-  "composition": "BridgeShort",
-  "total_frames": 300,
-  "duration_seconds": 10.0,
-  "resolution": "1080x1920",
-  "final_size_bytes": 17221654,
+  "test": "Zodiac Killer, frames 0-1452 (48.43 seconds), 20 parallel chunks",
+  "composition": "ZodiacProof",
+  "total_frames": 1453,
+  "duration_seconds": 48.433322,
+  "resolution": "1920x1080",
+  "final_size_bytes": 17026458,
   "join_method": "concat-copy",
   "join_seconds": 0,
   "chunks": {
-    "A": {
-      "chunk": "A",
-      "frames": "0-74",
-      "wall_seconds": "246",
-      "size_bytes": "4665233",
-      "duration_seconds": "2.500000",
-      "frames_rendered": "75",
-      "resolution": "1080,1920"
+    "C01": {
+      "chunk": "C01",
+      "frames": "0-72",
+      "wall_seconds": "80",
+      "size_bytes": "1101693",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
     },
-    "B": {
-      "chunk": "B",
-      "frames": "75-149",
-      "wall_seconds": "289",
-      "size_bytes": "5118274",
-      "duration_seconds": "2.500000",
-      "frames_rendered": "75",
-      "resolution": "1080,1920"
+    "C02": {
+      "chunk": "C02",
+      "frames": "73-145",
+      "wall_seconds": "103",
+      "size_bytes": "1214318",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
     },
-    "C": {
-      "chunk": "C",
-      "frames": "150-224",
-      "wall_seconds": "123",
-      "size_bytes": "3519546",
-      "duration_seconds": "2.500000",
-      "frames_rendered": "75",
-      "resolution": "1080,1920"
+    "C03": {
+      "chunk": "C03",
+      "frames": "146-218",
+      "wall_seconds": "56",
+      "size_bytes": "1379802",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
     },
-    "D": {
-      "chunk": "D",
-      "frames": "225-299",
-      "wall_seconds": "213",
-      "size_bytes": "3921094",
-      "duration_seconds": "2.500000",
-      "frames_rendered": "75",
-      "resolution": "1080,1920"
+    "C04": {
+      "chunk": "C04",
+      "frames": "219-291",
+      "wall_seconds": "50",
+      "size_bytes": "1396769",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C05": {
+      "chunk": "C05",
+      "frames": "292-364",
+      "wall_seconds": "62",
+      "size_bytes": "1168456",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C06": {
+      "chunk": "C06",
+      "frames": "365-437",
+      "wall_seconds": "60",
+      "size_bytes": "1051973",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C07": {
+      "chunk": "C07",
+      "frames": "438-510",
+      "wall_seconds": "37",
+      "size_bytes": "773546",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C08": {
+      "chunk": "C08",
+      "frames": "511-583",
+      "wall_seconds": "28",
+      "size_bytes": "488644",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C09": {
+      "chunk": "C09",
+      "frames": "584-656",
+      "wall_seconds": "31",
+      "size_bytes": "604972",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C10": {
+      "chunk": "C10",
+      "frames": "657-729",
+      "wall_seconds": "31",
+      "size_bytes": "616103",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C11": {
+      "chunk": "C11",
+      "frames": "730-802",
+      "wall_seconds": "33",
+      "size_bytes": "655508",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C12": {
+      "chunk": "C12",
+      "frames": "803-875",
+      "wall_seconds": "50",
+      "size_bytes": "737512",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C13": {
+      "chunk": "C13",
+      "frames": "876-948",
+      "wall_seconds": "44",
+      "size_bytes": "628621",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C14": {
+      "chunk": "C14",
+      "frames": "949-1021",
+      "wall_seconds": "44",
+      "size_bytes": "658199",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C15": {
+      "chunk": "C15",
+      "frames": "1022-1094",
+      "wall_seconds": "22",
+      "size_bytes": "628866",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C16": {
+      "chunk": "C16",
+      "frames": "1095-1167",
+      "wall_seconds": "36",
+      "size_bytes": "355799",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C17": {
+      "chunk": "C17",
+      "frames": "1168-1240",
+      "wall_seconds": "34",
+      "size_bytes": "507638",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C18": {
+      "chunk": "C18",
+      "frames": "1241-1313",
+      "wall_seconds": "49",
+      "size_bytes": "1320382",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C19": {
+      "chunk": "C19",
+      "frames": "1314-1386",
+      "wall_seconds": "33",
+      "size_bytes": "1359806",
+      "duration_seconds": "2.433333",
+      "frames_rendered": "73",
+      "resolution": "1920,1080"
+    },
+    "C20": {
+      "chunk": "C20",
+      "frames": "1387-1452",
+      "wall_seconds": "18",
+      "size_bytes": "394256",
+      "duration_seconds": "2.200000",
+      "frames_rendered": "66",
+      "resolution": "1920,1080"
     }
   },
-  "total_render_wall_seconds": 871,
-  "seconds_per_frame": 2.9033333333333333,
-  "frames_per_minute_per_runner": 20.66590126291619,
+  "total_render_wall_seconds": 901,
+  "seconds_per_frame": 0.6200963523743978,
+  "frames_per_minute_per_runner": 96.7591564927858,
   "estimate_10min_video": {
     "frames": 18000,
-    "render_minutes_total_compute": 871.0,
-    "estimated_billed_minutes_incl_setup": 953.0,
+    "render_minutes_total_compute": 186.0289057123193,
+    "estimated_billed_minutes_incl_setup": 268.02890571231933,
     "free_private_minutes": 2000,
     "fits_in_free_private_minutes": true
   }
