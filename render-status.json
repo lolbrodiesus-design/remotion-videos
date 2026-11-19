@@ -4,7 +4,7 @@
   "total_frames": 300,
   "duration_seconds": 10.0,
   "resolution": "1080x1920",
-  "final_size_bytes": 12149342,
+  "final_size_bytes": 14553145,
   "join_method": "concat-copy",
   "join_seconds": 1,
   "chunks": {
@@ -20,7 +20,7 @@
     "C02": {
       "chunk": "C02",
       "frames": "15-29",
-      "wall_seconds": "25",
+      "wall_seconds": "20",
       "size_bytes": "754373",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
@@ -29,8 +29,8 @@
     "C03": {
       "chunk": "C03",
       "frames": "30-44",
-      "wall_seconds": "25",
-      "size_bytes": "772096",
+      "wall_seconds": "24",
+      "size_bytes": "771029",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -38,7 +38,7 @@
     "C04": {
       "chunk": "C04",
       "frames": "45-59",
-      "wall_seconds": "22",
+      "wall_seconds": "23",
       "size_bytes": "755652",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
@@ -47,8 +47,8 @@
     "C05": {
       "chunk": "C05",
       "frames": "60-74",
-      "wall_seconds": "28",
-      "size_bytes": "617865",
+      "wall_seconds": "29",
+      "size_bytes": "618856",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -56,8 +56,8 @@
     "C06": {
       "chunk": "C06",
       "frames": "75-89",
-      "wall_seconds": "27",
-      "size_bytes": "827219",
+      "wall_seconds": "28",
+      "size_bytes": "1149102",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -65,8 +65,8 @@
     "C07": {
       "chunk": "C07",
       "frames": "90-104",
-      "wall_seconds": "31",
-      "size_bytes": "615015",
+      "wall_seconds": "25",
+      "size_bytes": "971125",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -74,8 +74,8 @@
     "C08": {
       "chunk": "C08",
       "frames": "105-119",
-      "wall_seconds": "31",
-      "size_bytes": "679516",
+      "wall_seconds": "38",
+      "size_bytes": "854746",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -83,8 +83,8 @@
     "C09": {
       "chunk": "C09",
       "frames": "120-134",
-      "wall_seconds": "32",
-      "size_bytes": "695036",
+      "wall_seconds": "27",
+      "size_bytes": "746386",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -92,8 +92,8 @@
     "C10": {
       "chunk": "C10",
       "frames": "135-149",
-      "wall_seconds": "25",
-      "size_bytes": "629608",
+      "wall_seconds": "21",
+      "size_bytes": "722885",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -101,8 +101,8 @@
     "C11": {
       "chunk": "C11",
       "frames": "150-164",
-      "wall_seconds": "26",
-      "size_bytes": "608191",
+      "wall_seconds": "37",
+      "size_bytes": "733345",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -110,8 +110,8 @@
     "C12": {
       "chunk": "C12",
       "frames": "165-179",
-      "wall_seconds": "27",
-      "size_bytes": "591907",
+      "wall_seconds": "36",
+      "size_bytes": "693623",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -119,8 +119,8 @@
     "C13": {
       "chunk": "C13",
       "frames": "180-194",
-      "wall_seconds": "33",
-      "size_bytes": "465164",
+      "wall_seconds": "32",
+      "size_bytes": "800003",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -128,8 +128,8 @@
     "C14": {
       "chunk": "C14",
       "frames": "195-209",
-      "wall_seconds": "21",
-      "size_bytes": "368322",
+      "wall_seconds": "26",
+      "size_bytes": "785990",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -137,8 +137,8 @@
     "C15": {
       "chunk": "C15",
       "frames": "210-224",
-      "wall_seconds": "32",
-      "size_bytes": "457545",
+      "wall_seconds": "34",
+      "size_bytes": "881887",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -146,8 +146,8 @@
     "C16": {
       "chunk": "C16",
       "frames": "225-239",
-      "wall_seconds": "26",
-      "size_bytes": "550357",
+      "wall_seconds": "23",
+      "size_bytes": "551368",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -164,8 +164,8 @@
     "C18": {
       "chunk": "C18",
       "frames": "255-269",
-      "wall_seconds": "30",
-      "size_bytes": "561307",
+      "wall_seconds": "22",
+      "size_bytes": "562143",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -173,8 +173,8 @@
     "C19": {
       "chunk": "C19",
       "frames": "270-284",
-      "wall_seconds": "17",
-      "size_bytes": "557338",
+      "wall_seconds": "30",
+      "size_bytes": "557809",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
@@ -182,20 +182,20 @@
     "C20": {
       "chunk": "C20",
       "frames": "285-299",
-      "wall_seconds": "23",
+      "wall_seconds": "28",
       "size_bytes": "483044",
       "duration_seconds": "0.500000",
       "frames_rendered": "15",
       "resolution": "1080,1920"
     }
   },
-  "total_render_wall_seconds": 529,
-  "seconds_per_frame": 1.7633333333333334,
-  "frames_per_minute_per_runner": 34.02646502835539,
+  "total_render_wall_seconds": 551,
+  "seconds_per_frame": 1.8366666666666667,
+  "frames_per_minute_per_runner": 32.66787658802178,
   "estimate_10min_video": {
     "frames": 18000,
-    "render_minutes_total_compute": 529.0,
-    "estimated_billed_minutes_incl_setup": 611.0,
+    "render_minutes_total_compute": 551.0,
+    "estimated_billed_minutes_incl_setup": 633.0,
     "free_private_minutes": 2000,
     "fits_in_free_private_minutes": true
   }
