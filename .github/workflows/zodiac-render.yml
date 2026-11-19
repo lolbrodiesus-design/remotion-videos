@@ -1,0 +1,268 @@
+# Full render: the Zodiac Killer video (frames 0-1452, 48.43 seconds),
+# split into 20 chunks rendered in parallel on 20 GitHub runners, then joined.
+# Composition ZodiacProof renders at TRUE full resolution natively
+# (ThreeCanvas is fixed 1920x1080, no dpr/res prop exists); the post composer
+# is OFF because it blanks the canvas under SwiftShader (verified locally).
+# The join job commits render-status.json with the measured per-frame pace.
+# NOTE: this file must reach the repo via the GitHub WEBSITE, never the API
+# (the App lacks the workflows permission and the API 403s on this path).
+# Trigger: pushes to this file itself, or manual "Run workflow" dispatch.
+
+name: Zodiac Killer Full Render (48s, 20 parallel chunks)
+
+on:
+  push:
+    paths:
+      - ".github/workflows/zodiac-render.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    name: Render chunk ${{ matrix.chunk }} (frames ${{ matrix.frames }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chunk: C01
+            frames: 0-72
+          - chunk: C02
+            frames: 73-145
+          - chunk: C03
+            frames: 146-218
+          - chunk: C04
+            frames: 219-291
+          - chunk: C05
+            frames: 292-364
+          - chunk: C06
+            frames: 365-437
+          - chunk: C07
+            frames: 438-510
+          - chunk: C08
+            frames: 511-583
+          - chunk: C09
+            frames: 584-656
+          - chunk: C10
+            frames: 657-729
+          - chunk: C11
+            frames: 730-802
+          - chunk: C12
+            frames: 803-875
+          - chunk: C13
+            frames: 876-948
+          - chunk: C14
+            frames: 949-1021
+          - chunk: C15
+            frames: 1022-1094
+          - chunk: C16
+            frames: 1095-1167
+          - chunk: C17
+            frames: 1168-1240
+          - chunk: C18
+            frames: 1241-1313
+          - chunk: C19
+            frames: 1314-1386
+          - chunk: C20
+            frames: 1387-1452
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Check ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Cache Remotion browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/remotion
+          key: remotion-browser-4.0.543
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure Remotion browser
+        run: npx remotion browser ensure
+
+      - name: Download Kenney GLBs
+        run: |
+          set -euo pipefail
+          mkdir -p public/bridge/kenney
+          cd public/bridge/kenney
+          BASE="https://raw.githubusercontent.com/ETdoFresh/kenney.nl/master"
+          NATURE="kenney_natureKit_2.1/Models/GLTF%20format"
+          TOWN="fantasy-town-kit-1.0/Models/GLTF%20format"
+          # Nature Kit 2.1 — filenames as in the pack
+          for f in canoe flower_purpleA flower_redA flower_yellowA grass grass_large lily_large plant_bush plant_bushDetailed plant_bushLarge tree_cone tree_default tree_detailed tree_fat tree_oak; do
+            curl -fsSL -o "$f.glb" "$BASE/$NATURE/$f.glb"
+          done
+          # Fantasy Town Kit 1.0 — same names as in the pack
+          for f in cart hedge lantern windmill; do
+            curl -fsSL -o "$f.glb" "$BASE/$TOWN/$f.glb"
+          done
+          # Fantasy Town Kit 1.0 — renamed to the dashed names the code expects
+          curl -fsSL -o banner-green.glb "$BASE/$TOWN/bannerGreen.glb"
+          curl -fsSL -o banner-red.glb "$BASE/$TOWN/bannerRed.glb"
+          curl -fsSL -o stall-bench.glb "$BASE/$TOWN/stallBench.glb"
+          curl -fsSL -o stall-green.glb "$BASE/$TOWN/stallGreen.glb"
+          curl -fsSL -o stall-red.glb "$BASE/$TOWN/stallRed.glb"
+          echo "GLB count: $(ls *.glb | wc -l) (expect 24)"
+          test "$(ls *.glb | wc -l)" -eq 24
+          for f in *.glb; do
+            head -c 4 "$f" | grep -q glTF || { echo "BAD HEADER: $f"; exit 1; }
+          done
+          echo "All 24 GLBs present with valid glTF headers"
+
+      - name: Render chunk ${{ matrix.chunk }}
+        run: |
+          set -euo pipefail
+          START=$(date +%s)
+          npx remotion render src/index.ts ZodiacProof "chunk-${{ matrix.chunk }}.mp4" --codec h264 --crf 16 --scale 1 --frames=${{ matrix.frames }} --props='{"post":{"composer":false}}' --gl=angle --chromium-flags='{"enable-unsafe-swiftshader":true,"use-angle":"swiftshader"}' --concurrency=1 --timeout=300000
+          END=$(date +%s)
+          WALL=$((END - START))
+          {
+            echo "chunk=${{ matrix.chunk }}"
+            echo "frames=${{ matrix.frames }}"
+            echo "wall_seconds=$WALL"
+            echo "size_bytes=$(stat -c%s "chunk-${{ matrix.chunk }}.mp4")"
+            echo "duration_seconds=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "chunk-${{ matrix.chunk }}.mp4")"
+            echo "frames_rendered=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 "chunk-${{ matrix.chunk }}.mp4")"
+            echo "resolution=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "chunk-${{ matrix.chunk }}.mp4")"
+          } > "timing-${{ matrix.chunk }}.txt"
+          cat "timing-${{ matrix.chunk }}.txt"
+
+      - name: Upload chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.chunk }}
+          path: |
+            chunk-${{ matrix.chunk }}.mp4
+            timing-${{ matrix.chunk }}.txt
+
+  join:
+    name: Join chunks + report
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: chunks
+          pattern: chunk-*
+          merge-multiple: true
+
+      - name: Install ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Join, probe, write status
+        run: |
+          set -euo pipefail
+          ls -la chunks/
+          for c in C01 C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16 C17 C18 C19 C20; do
+            test -f "chunks/chunk-$c.mp4" || { echo "MISSING chunks/chunk-$c.mp4"; exit 1; }
+            test -f "chunks/timing-$c.txt" || { echo "MISSING chunks/timing-$c.txt"; exit 1; }
+          done
+          printf "file 'chunks/chunk-C01.mp4'\nfile 'chunks/chunk-C02.mp4'\nfile 'chunks/chunk-C03.mp4'\nfile 'chunks/chunk-C04.mp4'\nfile 'chunks/chunk-C05.mp4'\nfile 'chunks/chunk-C06.mp4'\nfile 'chunks/chunk-C07.mp4'\nfile 'chunks/chunk-C08.mp4'\nfile 'chunks/chunk-C09.mp4'\nfile 'chunks/chunk-C10.mp4'\nfile 'chunks/chunk-C11.mp4'\nfile 'chunks/chunk-C12.mp4'\nfile 'chunks/chunk-C13.mp4'\nfile 'chunks/chunk-C14.mp4'\nfile 'chunks/chunk-C15.mp4'\nfile 'chunks/chunk-C16.mp4'\nfile 'chunks/chunk-C17.mp4'\nfile 'chunks/chunk-C18.mp4'\nfile 'chunks/chunk-C19.mp4'\nfile 'chunks/chunk-C20.mp4'\n" > concat.txt
+          JOIN_START=$(date +%s)
+          if ffmpeg -y -f concat -safe 0 -i concat.txt -c copy zodiac-full.mp4; then
+            JOIN_METHOD="concat-copy"
+          else
+            echo "Stream copy failed, re-encoding instead"
+            ffmpeg -y -f concat -safe 0 -i concat.txt -c:v libx264 -crf 16 -pix_fmt yuv420p zodiac-full.mp4
+            JOIN_METHOD="concat-reencode"
+          fi
+          JOIN_END=$(date +%s)
+          JOIN_SECONDS=$((JOIN_END - JOIN_START))
+          echo "JOIN_METHOD=$JOIN_METHOD JOIN_SECONDS=$JOIN_SECONDS"
+          JOIN_SECONDS="$JOIN_SECONDS" JOIN_METHOD="$JOIN_METHOD" python3 - <<'PYEOF'
+          import json, os, subprocess
+          chunks = [f"C{i:02d}" for i in range(1, 21)]
+          timings = {}
+          total_wall = 0
+          for c in chunks:
+              t = {}
+              with open(f"chunks/timing-{c}.txt") as f:
+                  for line in f:
+                      k, _, v = line.strip().partition("=")
+                      t[k] = v
+              timings[c] = t
+              total_wall += int(t["wall_seconds"])
+          def probe(path):
+              out = subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                                             "-show_entries", "stream=width,height,nb_frames",
+                                             "-show_entries", "format=duration,size",
+                                             "-of", "json", path])
+              return json.loads(out)
+          info = probe("zodiac-full.mp4")
+          fmt = info["format"]
+          stream = info["streams"][0]
+          duration = float(fmt["duration"])
+          size = int(fmt["size"])
+          total_frames = int(stream.get("nb_frames") or round(duration * 30))
+          pace = total_wall / total_frames if total_frames else None
+          frames_10min = 18000  # 10 minutes at 30 fps
+          render_minutes_10min = (pace * frames_10min / 60) if pace else None
+          # Billed minutes estimate: render compute + ~4 min setup per chunk job
+          # (checkout, npm ci, browser download) x 20 chunks + ~2 min join job.
+          chunks_10min = 20
+          billed_minutes_10min = (render_minutes_10min + chunks_10min * 4 + 2) if render_minutes_10min else None
+          status = {
+              "test": "Zodiac Killer, frames 0-1452 (48.43 seconds), 20 parallel chunks",
+              "composition": "ZodiacProof",
+              "total_frames": total_frames,
+              "duration_seconds": duration,
+              "resolution": f"{stream['width']}x{stream['height']}",
+              "final_size_bytes": size,
+              "join_method": os.environ["JOIN_METHOD"],
+              "join_seconds": int(os.environ["JOIN_SECONDS"]),
+              "chunks": timings,
+              "total_render_wall_seconds": total_wall,
+              "seconds_per_frame": pace,
+              "frames_per_minute_per_runner": (60 / pace) if pace else None,
+              "estimate_10min_video": {
+                  "frames": frames_10min,
+                  "render_minutes_total_compute": render_minutes_10min,
+                  "estimated_billed_minutes_incl_setup": billed_minutes_10min,
+                  "free_private_minutes": 2000,
+                  "fits_in_free_private_minutes": (billed_minutes_10min <= 2000) if billed_minutes_10min else None,
+              },
+          }
+          with open("render-status.json", "w") as f:
+              json.dump(status, f, indent=2)
+          print(json.dumps(status, indent=2))
+          PYEOF
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: zodiac-full
+          path: zodiac-full.mp4
+
+      - name: Commit render-status.json
+        run: |
+          git config user.name "remotion-render-bot"
+          git config user.email "remotion-render-bot@users.noreply.github.com"
+          git add render-status.json
+          git commit -m "Render status: Zodiac Killer full video (20 chunks)"
+          git push
