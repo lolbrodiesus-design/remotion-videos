@@ -4,6 +4,7 @@ import { CannibalismCompositions } from "./Cannibalism";
 import { Cannibalism10minCompositions } from "./Cannibalism10min";
 import { ThumbnailsCompositions } from "./Thumbnails";
 import { BridgeCompositions } from "./Bridge";
+import { ZodiacCompositions } from "./Zodiac";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ export const RemotionRoot: React.FC = () => {
       <Cannibalism10minCompositions />
       <ThumbnailsCompositions />
       <BridgeCompositions />
+      <ZodiacCompositions />
     </>
   );
 };
