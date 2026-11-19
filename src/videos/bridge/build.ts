@@ -676,8 +676,9 @@ export const buildTown = (root: THREE.Object3D, kit: Kit, rays: Ray[] = []) => {
   prop(b, kit, "stall-red", -14, D0, -34, 3.2);
   prop(b, kit, "stall-green", -21.5, D0, -34.4, 3.2, 0.1);
   // round 4: this cart sat blurred in shot 11's bottom-left corner (lens at 14, 10.5, -47) as a grey "mushroom"
-  // (bed + handle + wheel); moved 3.5 m along the quay, out of that frame, still dressing the market
-  prop(b, kit, "cart", 17.0, D0, -34.0, 2.2, 1.2);
+  // (bed + handle + wheel); moved 3.5 m along the quay, out of that frame, still dressing the market.
+  // Fix round: moved 7 m further east along the quay — at x 17 it sliced a townsperson in shot 2's wide shots.
+  prop(b, kit, "cart", 24.0, D0, -34.0, 2.2, 1.2);
   prop(b, kit, "stall-bench", 20, D0, -32.2, 1.0);
   prop(b, kit, "stall-green", 16, D0, 34, 3.2, Math.PI);
   prop(b, kit, "stall-red", 23.5, D0, 34.3, 3.2, Math.PI);
