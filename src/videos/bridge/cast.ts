@@ -226,8 +226,9 @@ export type Stage = { places: Place[]; fx: FxPlace[] };
 const exprMarch = (id: number, t: number, i: number, tau: number): { expr: Expr; look: number } => {
   const lau = i % 3 === 0, whi = i % 5 === 1, L = LEAD;
   switch (id) {
-    case 1: return { expr: lau ? "laugh" : whi ? "whistle" : "grin", look: 0 };
-    case 2: case 3: return { expr: i % 4 === 3 ? "smile_closed" : i % 2 ? "neutral" : "stern", look: 0 };
+    // intro (shots 1-3, frames 0-299): every soldier serious — one locked "neutral" face (straight mouth,
+    // lidded eyes), no laughing / whistling / grinning in shot 1, no stern frowns in shots 2-3.
+    case 1: case 2: case 3: return { expr: "neutral", look: 0 };
     case 4: return t < 16.17 - L ? { expr: i % 2 ? "neutral" : "stern", look: 0 } : t < 17.3 - L ? { expr: lau ? "shock" : "nervous", look: 0 } : { expr: "neutral", look: 0 };
     case 5: return { expr: t < 19.48 - L ? "neutral" : t < 20.6 - L ? "grin" : i % 2 ? "laugh" : "grin", look: 0 };
     case 6: return { expr: (i === 2 && t > 21.9 - L) || (t > 23.7 - L && i % 4 === 1) ? "whistle" : t > 23.7 - L && lau ? "laugh" : "grin", look: 0 };
