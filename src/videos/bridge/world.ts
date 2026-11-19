@@ -144,11 +144,11 @@ export class World {
     this.fill = new THREE.DirectionalLight("#9fb8ff", 0.35);
     R.add(this.hemi, this.sun, this.sun.target, this.fill, this.fill.target);
     this.cloudMaps = { day: [0, 1, 2, 3].map((k) => cloudHD(k, LOOK.day.cloud)), golden: [0, 1, 2, 3].map((k) => cloudHD(k, LOOK.golden.cloud)) };
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + 0.3, d = 620 + (i % 3) * 60;
+    for (let i = 0; i < 13; i++) {
+      const a = (i / 13) * Math.PI * 2 + 0.3, d = 620 + (i % 3) * 60;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: this.cloudMaps.day[i % 4], color: new THREE.Color(1.1, 1.1, 1.1), transparent: true, depthWrite: false, fog: false }));
-      const w = 130 + (i % 4) * 30;
-      m.position.set(Math.cos(a) * d, 120 + (i % 4) * 38, Math.sin(a) * d); m.scale.set(w, w / 2, 1);
+      const w = 130 + (i % 5) * 25;
+      m.position.set(Math.cos(a) * d, 105 + (i % 5) * 30, Math.sin(a) * d); m.scale.set(w, w / 2, 1);
       m.layers.set(NOINK);
       this.clouds.push(m); R.add(m);
     }

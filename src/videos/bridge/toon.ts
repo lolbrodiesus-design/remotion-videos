@@ -192,6 +192,13 @@ const taper = (p: Pen, a: P2, b: P2, wa: number, wb: number, col = INK) => {
   p.dot(a[0], a[1], wa / 2, col); p.dot(b[0], b[1], wb / 2, col);
 };
 
+/** a real button: ink rim, metal fill, white catch-light (replaces the flat dots on jackets) */
+const button = (p: Pen, x: number, y: number, u: number, col: string) => {
+  p.dot(x, y, 3.4 * u, INK);
+  p.dot(x, y, 2.5 * u, col);
+  p.dot(x - 0.8 * u, y - 0.8 * u, 0.9 * u, "rgba(255,255,255,0.85)");
+};
+
 // ---------------- contours ----------------
 export type Blob = { a: number; b: number; nTop: number; nBot: number; egg: number; asym: number; rot: number; noise: number; seed: number };
 
@@ -376,6 +383,12 @@ const hatOn = (p: Pen, o: Outfit, hp: P2[], H: Blob, cx: number, hc: number, lig
       p.arc(bx, by, 3.5 * u, 2.8 * u, 200, 500, 1.6 * u);
       const [tx, ty] = R([[cx, yb - ht - 6 * u]])[0];
       p.ell(tx, ty, 7 * u, 7 * u, "#2b7a4b", 2.5 * u); // green tuft
+      // chin strap hugging the jaw down to the chin (stays clear of eyes and mouth)
+      for (const s of [-1, 1]) {
+        const [sx0, sy0] = R([[cx + s * 38 * u, yb + 2 * u]])[0];
+        const [sx1, sy1] = R([[cx + s * 25 * u, hc + 0.8 * H.b]])[0];
+        p.stroke([[sx0, sy0], [sx1, sy1]], 2 * u, "#16171b");
+      }
     }
   } else if (o.hat === "cap" || o.hat === "hair") {
     const cut = crown + (o.hat === "cap" ? 0.3 : 0.42) * HH;
@@ -530,7 +543,12 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
       arms.push({ pts: [S, E, Hd], front: true });
     } else arms.push({ pts: hang(1, sw), front: false });
   }
-  const drawArm = (a: Arm) => { p.stroke(curve(a.pts[0], a.pts[1], a.pts[2]), 5.2 * u, armCol); p.dot(a.pts[2][0], a.pts[2][1], 5.5 * u); };
+  const drawArm = (a: Arm) => {
+    p.stroke(curve(a.pts[0], a.pts[1], a.pts[2]), 5.2 * u, armCol);
+    // dark cuff at the wrist (rimmed band over the last stretch of the arm)
+    p.band([lerp2(a.pts[1], a.pts[2], 0.6), a.pts[2]], shade(o.jacket, 0.45), 6.4 * u, 1.2 * u, "round");
+    p.dot(a.pts[2][0], a.pts[2][1], 5.5 * u);
+  };
   // behind the body: rifle, sword, arms
   if (rifle) {
     p.band([R0, R1], "#7a4b2a", 5 * u, 1.5 * u, "round");
@@ -546,6 +564,10 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
     const D: Blob = { a: 0.5 * W * 0.98, b: 0.5 * ((sole - 0.35 * HH) - (chin - 0.2 * HH)), nTop: 2.0, nBot: 3.0, egg: 0.35, asym: 0.03 * facing, rot: 0, noise: 0.006, seed: seed + 9 };
     const dp = blobPts(300, sole - 0.35 * HH - D.b, D);
     p.gradFill(dp, o.dress!, mul(o.dress!, SH_CLOTH), light);
+    p.clip(dp, () => { // shawl across the chest + a darker hem band (clipped to the dress silhouette)
+      p.band([[300 - 0.5 * W, chin + 0.28 * HH], [300 + 0.5 * W, chin + 0.72 * HH]], mix(o.dress!, "#f4efe2", 0.35), 0.13 * HH, 1.4 * u);
+      p.band([[300 - 0.5 * W, sole - 0.52 * HH], [300 + 0.5 * W, sole - 0.52 * HH]], shade(o.dress!, 0.65), 0.06 * HH, 1.2 * u);
+    });
     p.inkRing(dp, ow, thick);
     const Sw: Blob = { a: 0.37 * W, b: 0.3 * HH, nTop: 2.2, nBot: 2.4, egg: 0.1, asym: 0, rot: 0, noise: 0.006, seed: seed + 8 };
     const sp = blobPts(300, chin + 0.12 * HH, Sw);
@@ -554,16 +576,39 @@ export const bodyFront = (p: Pen, o: Outfit, opts: FrontOpts) => {
   } else {
     p.gradFill(tp, o.jacket, mul(o.jacket, SH_CLOTH), light);
     p.clip(tp, () => {
+      // fabric weave: fine horizontal lines, low alpha (belts and buttons draw over it)
+      for (let y = chin + 0.1 * HH; y < torsoBot - 0.05 * HH; y += 0.09 * HH)
+        p.stroke([[tcx - 0.8 * T.a, y], [tcx + 0.8 * T.a, y]], 1 * u, "rgba(0,0,0,0.07)");
+      for (let y = chin + 0.14 * HH; y < torsoBot - 0.05 * HH; y += 0.18 * HH)
+        p.stroke([[tcx - 0.8 * T.a, y], [tcx + 0.8 * T.a, y]], 1 * u, "rgba(255,255,255,0.05)");
+      // wear: soft pale scuffs + one dark one (seeded, so every soldier wears differently)
+      p.ell(tcx + (rnd(seed + 21, 1) - 0.5) * 0.9 * T.a, chin + (0.3 + rnd(seed + 21, 2) * 0.5) * HH, 0.22 * T.a, 0.1 * T.a, "rgba(255,240,210,0.10)", 0);
+      p.ell(tcx + (rnd(seed + 22, 1) - 0.5) * 0.9 * T.a, chin + (0.25 + rnd(seed + 22, 2) * 0.55) * HH, 0.16 * T.a, 0.07 * T.a, "rgba(15,10,8,0.07)", 0);
+      // collar: dark band under the chin + a white shirt sliver at the neck
+      p.poly([[tcx - 0.62 * T.a, chin - 0.03 * HH], [tcx + 0.62 * T.a, chin - 0.03 * HH], [tcx + 0.6 * T.a, chin + 0.08 * HH], [tcx - 0.6 * T.a, chin + 0.08 * HH]], shade(o.jacket, 0.45), 1.5 * u);
+      p.poly([[tcx - 0.16 * T.a, chin - 0.03 * HH], [tcx + 0.16 * T.a, chin - 0.03 * HH], [tcx + 0.12 * T.a, chin + 0.05 * HH], [tcx - 0.12 * T.a, chin + 0.05 * HH]], "#f4efe2", 1 * u);
+      // centre placket strip the buttons sit on
+      p.poly([[tcx + 2 * u * facing - 0.09 * T.a, chin + 0.06 * HH], [tcx + 2 * u * facing + 0.09 * T.a, chin + 0.06 * HH],
+        [tcx + 2 * u * facing + 0.09 * T.a, torsoBot - 0.05 * HH], [tcx + 2 * u * facing - 0.09 * T.a, torsoBot - 0.05 * HH]], shade(o.jacket, 0.82), 0);
       if (o.belt) {
         for (const s of [-1, 1]) p.band([[tcx - s * 0.75 * T.a, chin - 0.05 * HH], [tcx + s * 0.8 * T.a, torsoBot - 0.1 * HH]], o.belt!, 5.5 * u, 1.8 * u);
         const xc = tcx + 0.025 * T.a, yc = chin - 0.05 * HH + (torsoBot - 0.1 * HH - (chin - 0.05 * HH)) * (0.75 / 1.55);
-        p.poly([[xc - 3.5 * u, yc - 3.5 * u], [xc + 3.5 * u, yc - 3.5 * u], [xc + 3.5 * u, yc + 3.5 * u], [xc - 3.5 * u, yc + 3.5 * u]], "#d9dde0", 1.5 * u);
+        // brass buckle: gold rim, belt-colour centre, catch-light (was a flat grey square)
+        p.poly(rrect(xc - 5 * u, yc - 5 * u, xc + 5 * u, yc + 5 * u, 2 * u), "#d9b04a", 1.5 * u);
+        p.poly(rrect(xc - 2.4 * u, yc - 2.4 * u, xc + 2.4 * u, yc + 2.4 * u, 1 * u), o.belt!, 1 * u);
+        p.dot(xc - 2 * u, yc - 2 * u, 1 * u, "rgba(255,255,255,0.8)");
+        // stitching down the middle of each belt
+        for (const s of [-1, 1]) {
+          p.g.setLineDash([3.5 * u, 3.5 * u]);
+          p.stroke([[tcx - s * 0.75 * T.a, chin - 0.05 * HH], [tcx + s * 0.8 * T.a, torsoBot - 0.1 * HH]], 1.1 * u, "rgba(90,80,70,0.55)");
+          p.g.setLineDash([]);
+        }
       }
       if (o.sash) p.band([[tcx - 1.3 * T.a, torsoBot - 0.32 * HH], [tcx + 1.3 * T.a, torsoBot - 0.32 * HH]], o.sash, 0.13 * HH, 1.8 * u);
-      for (let i = 0; i < 4; i++) {
-        const y = chin + 0.12 * HH + i * 0.2 * HH;
+      for (let i = 0; i < 5; i++) {
+        const y = chin + 0.14 * HH + i * 0.17 * HH;
         if (o.sash && Math.abs(y - (torsoBot - 0.32 * HH)) < 0.08 * HH) continue;
-        p.dot(tcx + 2 * u * facing, y, 2.2 * u + 0.8 * u, INK); p.dot(tcx + 2 * u * facing, y, 2.2 * u, o.buttons ?? shade(o.jacket, 0.7));
+        button(p, tcx + 2 * u * facing, y, u, o.buttons ?? shade(o.jacket, 0.7));
       }
     });
     if (o.sash) { const s = facing || 1; p.poly([[tcx + s * 0.55 * T.a, torsoBot - 0.3 * HH], [tcx + s * 0.75 * T.a, torsoBot + 0.05 * HH], [tcx + s * 0.45 * T.a, torsoBot + 0.02 * HH]], o.sash, 1.6 * u); }
@@ -702,19 +747,35 @@ export const bodySide = (p: Pen, o: Outfit, opts: SideOpts) => {
     far = [S, [(S[0] + hN[0]) / 2 - 4 * u, (S[1] + hN[1]) / 2 - 0.02 * HH], [hN[0] - 6 * u, hN[1] - 0.08 * HH]];
   } else if (rifle) { near = [S, [S[0] - 4 * u, S[1] + 0.42 * HH], B0]; far = mode === "march" ? swingArm(rad(30) * nearFwd) : swingArm(0); }
   else { near = swingArm(rad(-30) * nearFwd); far = mode === "march" ? swingArm(rad(30) * nearFwd) : null; }
-  if (far) { p.stroke(curve(far[0], far[1], far[2]), 5.2 * u, farArm); p.dot(far[2][0], far[2][1], 5.5 * u); }
+  if (far) {
+    p.stroke(curve(far[0], far[1], far[2]), 5.2 * u, farArm);
+    p.band([lerp2(far[1], far[2], 0.6), far[2]], shade(o.jacket, 0.45), 6.4 * u, 1.2 * u, "round"); // cuff
+    p.dot(far[2][0], far[2][1], 5.5 * u);
+  }
   p.gradFill(tp, o.jacket, mul(o.jacket, SH_CLOTH), light);
   p.clip(tp, () => {
+    // fabric weave + a soft wear scuff (belts and buttons draw over it)
+    for (let y = chin + 0.1 * HH; y < torsoBot - 0.05 * HH; y += 0.09 * HH)
+      p.stroke([[tcx - 0.8 * T.a, y], [tcx + 0.8 * T.a, y]], 1 * u, "rgba(0,0,0,0.07)");
+    p.ell(tcx + (rnd(seed + 21, 1) - 0.5) * 0.8 * T.a, chin + (0.3 + rnd(seed + 21, 2) * 0.5) * HH, 0.2 * T.a, 0.09 * T.a, "rgba(255,240,210,0.10)", 0);
+    // collar: dark band under the chin + a white shirt sliver at the front edge
+    p.poly([[tcx - 0.7 * T.a, chin - 0.03 * HH], [tcx + 0.7 * T.a, chin - 0.03 * HH], [tcx + 0.68 * T.a, chin + 0.08 * HH], [tcx - 0.68 * T.a, chin + 0.08 * HH]], shade(o.jacket, 0.45), 1.5 * u);
+    p.poly([[tcx + 0.5 * T.a, chin - 0.03 * HH], [tcx + 0.72 * T.a, chin - 0.03 * HH], [tcx + 0.7 * T.a, chin + 0.05 * HH], [tcx + 0.48 * T.a, chin + 0.05 * HH]], "#f4efe2", 1 * u);
+    // centre placket strip the buttons sit on
+    p.poly([[tcx + 0.8 * T.a - 0.09 * T.a, chin + 0.06 * HH], [tcx + 0.8 * T.a + 0.09 * T.a, chin + 0.06 * HH],
+      [tcx + 0.8 * T.a + 0.09 * T.a, torsoBot - 0.05 * HH], [tcx + 0.8 * T.a - 0.09 * T.a, torsoBot - 0.05 * HH]], shade(o.jacket, 0.82), 0);
     if (o.belt) p.band([[tcx - 0.65 * T.a, chin - 0.05 * HH], [tcx + 0.75 * T.a, torsoBot - 0.1 * HH]], o.belt!, 5.5 * u, 1.8 * u);
     if (o.sash) p.band([[tcx - 1.3 * T.a, torsoBot - 0.32 * HH], [tcx + 1.3 * T.a, torsoBot - 0.32 * HH]], o.sash, 0.13 * HH, 1.8 * u);
-    if (!o.dress) for (let i = 0; i < 3; i++) { const y = chin + 0.16 * HH + i * 0.24 * HH; p.dot(tcx + 0.8 * T.a, y, 3 * u, INK); p.dot(tcx + 0.8 * T.a, y, 2.2 * u, o.buttons ?? shade(o.jacket, 0.7)); }
+    if (!o.dress) for (let i = 0; i < 3; i++) { const y = chin + 0.16 * HH + i * 0.24 * HH; button(p, tcx + 0.8 * T.a, y, u, o.buttons ?? shade(o.jacket, 0.7)); }
   });
   p.inkRing(tp, ow, thick);
   if (rifle) {
     p.band([B0, B1], "#7a4b2a", 5 * u, 1.5 * u, "round");
     p.band([lerp2(B0, B1, 0.6), B1], "#8d949c", 2.4 * u, 1.2 * u, "round");
   }
-  p.stroke(curve(near[0], near[1], near[2]), 5.2 * u, armCol); p.dot(near[2][0], near[2][1], 5.5 * u);
+  p.stroke(curve(near[0], near[1], near[2]), 5.2 * u, armCol);
+  p.band([lerp2(near[1], near[2], 0.6), near[2]], shade(o.jacket, 0.45), 6.4 * u, 1.2 * u, "round"); // cuff
+  p.dot(near[2][0], near[2][1], 5.5 * u);
   // ---- head ----
   const hx = 300 + 4 * u;
   hatBehind(p, o, H, hx, hc, light, thick, ow, true);

@@ -281,14 +281,16 @@ export const planksHD = () => ctex("planksHD", 2048, 2048, (g, r) => {
       const x = U(r, 0, S), rad = U(r, 120, 260), light = r() > 0.5;
       wrapX(S, x - rad * 3, rad * 6, (xx) => blotch(g, xx + rad * 3, y + B / 2, rad, 3, light ? "255,236,200" : "110,60,25", light ? 0.12 : 0.1));
     }
-    for (let k = 0; k < 18; k++) { // grain: long, thin, clearly visible; never as dark or as wide as a seam
+    for (let k = 0; k < 28; k++) { // grain: long, thin, clearly visible; never as dark or as wide as a seam
       const light = r() < 0.25;
       grain(g, r, S, U(r, 0, S), y + U(r, 16, B - 16), U(r, 500, 1600), U(r, 2, 8), U(r, 2, 4),
-        light ? "rgba(255,232,195,0.2)" : "rgba(95,48,18,0.3)");
+        light ? "rgba(255,232,195,0.2)" : "rgba(95,48,18,0.36)");
     }
-    for (let k = 0; k < 4; k++) // a few longer figure lines (darker, still thinner than a seam)
+    for (let k = 0; k < 6; k++) // a few longer figure lines (darker, still thinner than a seam)
       grain(g, r, S, U(r, 0, S), y + U(r, 30, B - 30), U(r, 900, 1900), U(r, 4, 10), 3.5, "rgba(70,32,10,0.4)");
-    if (r() < 0.35) { // knot, about one board in three
+    for (let k = 0; k < 3; k++) // pale polish where feet wear the middle of the board
+      grain(g, r, S, U(r, 0, S), y + U(r, 40, B - 40), U(r, 700, 1800), U(r, 6, 12), U(r, 10, 18), "rgba(255,232,195,0.14)");
+    if (r() < 0.5) { // knot, about one board in two
       const kx = U(r, 120, S - 120), ky = y + U(r, 70, B - 70), rx = U(r, 14, 24), ry = rx * U(r, 0.45, 0.6);
       g.strokeStyle = "rgba(140,82,36,0.20)"; g.lineWidth = 2;
       g.beginPath(); g.ellipse(kx, ky, rx * 2.3, ry * 1.9, 0, 0, TAU); g.stroke();
@@ -312,6 +314,10 @@ export const planksHD = () => ctex("planksHD", 2048, 2048, (g, r) => {
   for (let i = 0; i <= 8; i++) { // seams last: 12 px near-black core + 3 px soft rim (~5 % of the pitch: survives mips)
     g.fillStyle = "rgba(40,18,8,0.6)"; g.fillRect(0, i * B - GAP / 2 - 3, S, GAP + 6);
     g.fillStyle = "#1c0c05"; g.fillRect(0, i * B - GAP / 2, S, GAP);
+  }
+  for (let i = 0; i < 3; i++) { // dark damp stains hugging a seam
+    const y = Math.floor(U(r, 0, 8)) * B + U(r, 0, 40);
+    blotch(g, U(r, 100, S - 100), y, U(r, 60, 140), 1.8, "90,50,20", 0.08);
   }
 });
 
@@ -371,7 +377,9 @@ export const stoneHD = (key = "stoneHD", cols = ["#ddd0bf", "#d3c5b3", "#e5d9c9"
       for (const w0 of ws) {
         const w = w0 * k, col = jit(r, pick(r, cols), 0.1, 5, 0.18), dl = U(r, -1, 1);
         const sp = Array.from({ length: 16 }, () => [r(), r(), U(r, 1, 2.2), r() < 0.6 ? 1 : 0]);
-        const crack = r() < 0.15 ? Array.from({ length: 4 }, () => [r(), r()]) : null;
+        const crack = r() < 0.22 ? Array.from({ length: 4 }, () => [r(), r()]) : null;
+        const wet = r() < 0.07; // a darker, damp block
+        const chip = r() < 0.25 ? Math.floor(r() * 4) : -1; // chipped corner: 0 TL, 1 TR, 2 BL, 3 BR
         wrapX(S, x % S, w, (xx) => {
           const X = xx + J / 2, Y = y + J / 2, BW = w - J, BH = RH - J;
           rr(g, X, Y, BW, BH, 5); g.fillStyle = col; g.fill();
@@ -379,6 +387,12 @@ export const stoneHD = (key = "stoneHD", cols = ["#ddd0bf", "#d3c5b3", "#e5d9c9"
           g.fillStyle = "rgba(255,252,245,0.22)"; g.fillRect(X + 3, Y, BW - 6, 6);        // top bevel
           g.fillStyle = "rgba(255,252,245,0.10)"; g.fillRect(X, Y + 4, 4, BH - 8);        // left bevel
           g.fillStyle = "rgba(70,55,45,0.14)"; g.fillRect(X + 3, Y + BH - 5, BW - 6, 5); // bottom shade
+          if (wet) { g.fillStyle = "rgba(70,58,45,0.14)"; g.fillRect(X, Y, BW, BH); }  // damp block
+          if (chip >= 0) { // small dark chip at one corner
+            const cxp = chip % 2 ? X + BW : X, cyp = chip < 2 ? Y : Y + BH;
+            g.fillStyle = "rgba(70,55,45,0.3)";
+            g.beginPath(); g.moveTo(cxp, cyp); g.lineTo(cxp + (chip % 2 ? -14 : 14), cyp); g.lineTo(cxp, cyp + (chip < 2 ? 14 : -14)); g.closePath(); g.fill();
+          }
           for (const [u, v, s, dark] of sp) {
             g.fillStyle = dark ? "rgba(95,82,72,0.38)" : "rgba(255,255,255,0.35)";
             g.beginPath(); g.arc(X + 6 + u * (BW - 12), Y + 8 + v * (BH - 16), s, 0, TAU); g.fill();
@@ -486,7 +500,11 @@ export const roofHD = (col: string, slate = false) => ctex("roofHD" + col, 1024,
     g.fillStyle = slate ? "rgba(220,230,245,0.18)" : "rgba(255,235,220,0.22)"; g.fillRect(0, y + C - 9, S, 3); // lower-lip light
     g.fillStyle = slate ? "rgba(15,20,30,0.32)" : "rgba(55,22,18,0.32)"; g.fillRect(0, y + C - 5, S, 5);        // course shadow
   }
-  for (let i = 0; i < 18; i++) { // weathering
+  for (let i = 0; i < 6; i++) { // a few slipped / missing tiles: dark gaps in the courses
+    const row = Math.floor(U(r, 0, S / C)), x = U(r, 0, S - TW);
+    wrapX(S, x, TW, (xx) => { g.fillStyle = "rgba(35,18,14,0.55)"; g.fillRect(xx, row * C + 4, TW - 2, C - 8); });
+  }
+  for (let i = 0; i < 24; i++) { // weathering
     const x = U(r, 0, S), y = U(r, 0, S), rad = U(r, 40, 120);
     wrap2(S, S, x, y, rad * 1.5, (xx, yy) => blotch(g, xx, yy, rad, 1.5, "70,60,40", 0.08));
   }
@@ -498,9 +516,13 @@ export const roofHD = (col: string, slate = false) => ctex("roofHD" + col, 1024,
 export const grassHD = () => ctex("grassHD", 1024, 1024, (g, r) => {
   const S = 1024;
   g.fillStyle = "#73b23d"; g.fillRect(0, 0, S, S);
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 20; i++) {
     const x = U(r, 0, S), y = U(r, 0, S), rad = U(r, 120, 320), light = r() > 0.5;
-    wrap2(S, S, x, y, rad * 1.4, (xx, yy) => blotch(g, xx, yy, rad, 1.4, light ? "140,198,80" : "92,154,48", 0.35));
+    wrap2(S, S, x, y, rad * 1.4, (xx, yy) => blotch(g, xx, yy, rad, 1.4, light ? "140,198,80" : "92,154,48", 0.42));
+  }
+  for (let i = 0; i < 5; i++) { // dry, sun-bleached patches
+    const x = U(r, 0, S), y = U(r, 0, S), rad = U(r, 80, 200);
+    wrap2(S, S, x, y, rad * 1.4, (xx, yy) => blotch(g, xx, yy, rad, 1.4, "198,186,110", 0.16));
   }
   g.lineWidth = 2; g.lineCap = "round"; g.lineJoin = "round";
   for (let i = 0; i < 1400; i++) { // tufts ~90 per m2
@@ -615,6 +637,17 @@ export const facadeHD = (key: string, wm: number, hm: number, o: { wall: string;
       g.strokeStyle = "rgba(60,45,40,0.45)"; g.strokeRect(x0, y0, ww, wh);
       g.fillStyle = "#ebe3d4"; g.fillRect(x0 - tr - m(0.06), by + tr, ww + 2 * tr + m(0.12), m(0.07)); // sill
       g.fillStyle = "rgba(60,45,40,0.35)"; g.fillRect(x0 - tr - m(0.06), by + tr + m(0.07), ww + 2 * tr + m(0.12), m(0.03));
+      if (fl === 0 && r() < 0.35) { // flower box under a ground-floor window
+        const bx0 = x0 - tr - m(0.06), bw2 = ww + 2 * tr + m(0.12), by2 = by + tr + m(0.02), bh2 = m(0.16);
+        g.fillStyle = "#6e4a30"; g.fillRect(bx0, by2, bw2, bh2);
+        g.strokeStyle = "rgba(40,25,15,0.6)"; g.lineWidth = 1.5; g.strokeRect(bx0, by2, bw2, bh2);
+        for (let k = 0; k < 6; k++) {
+          g.fillStyle = pick(r, ["#f4d24a", "#f3a9bb", "#f7f3e8", "#d94a4a", "#e8703a"]);
+          g.beginPath(); g.arc(bx0 + m(0.1) + (k * (bw2 - m(0.2))) / 5, by2 - m(0.02), m(0.035), 0, TAU); g.fill();
+        }
+        g.fillStyle = "#4c7a37";
+        for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(bx0 + m(0.14) + (k * (bw2 - m(0.28))) / 3, by2 + m(0.02), m(0.03), 0, TAU); g.fill(); }
+      }
     }
   });
 };
