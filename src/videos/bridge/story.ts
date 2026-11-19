@@ -137,14 +137,17 @@ export const snapEnd = (snap: number): V3 => {
 };
 
 // ---- framings (f -> camera); each pushes in from the frame its key starts ----
-// shot 1 (hook, flash-forward): wide 3/4 front -> eye-level MS of the front row (was 0.6 m, now 1.4 m) -> boot level
+// shot 1 (hook, flash-forward): wide 3/4 front -> eye-level MS of the front row (was 0.6 m, now 1.4 m) ->
+// low front of the column, pulled back so whole heads stay in frame (was F - 4.2, faces cut off at ~3.5 s)
 const S1a = (f: number) => { const F = Fz(1, f); return dolly([7.5, D0 + 2.6, F - 13], [0, D0 + 2.4, F + 5], pushK(f, 0, 0.0025), { fov: 44 }); };
 const S1b = (f: number) => { const F = Fz(1, f); return dolly([1.4, D0 + 1.4, F - 7.2], [0, D0 + 1.7, F + 1.5], pushK(f, 30, 0.002), { fov: 40, roll: -0.04 }); };
-const S1c = (f: number) => { const F = Fz(1, f); return dolly([-0.9, D0 + 0.4, F - 4.2], [0, D0 + 0.55, F + 0.8], pushK(f, 72, 0.003), { fov: 38, roll: 0.04 }); };
-// shot 2 (town aerial): zoom pushes (the last framing sits just behind the near tower); punch on "pride of the whole town"
+const S1c = (f: number) => { const F = Fz(1, f); return dolly([-0.9, D0 + 0.5, F - 6.5], [0, D0 + 0.9, F + 0.8], pushK(f, 72, 0.0015), { fov: 38, roll: 0.04 }); };
+// shot 2 (town aerial): gentle zoom pushes from the town side, reframed so the near-bank townspeople stay fully
+// in frame (the old pushes cropped them at the bottom edge); the last framing is a clean wide — the old one sat
+// just behind the near tower, which filled a third of the frame. Punch kept on "pride of the whole town".
 const S2a = (f: number) => zoom([17, 13, -52], [0, 9, 4], 44, pushK(f, 126, 0.002));
-const S2b = (f: number) => zoom([10, 10.5, -42], [0, 8, 8], 42, pushK(f, 181, 0.002));
-const S2c = (f: number) => zoom([5, 10, -31], [0, 8.6, 30], 40, pushK(f, 237, 0.0015, 0.006, 35));
+const S2b = (f: number) => zoom([13, 11, -48], [0, 7.5, 2], 43, pushK(f, 181, 0.0015));
+const S2c = (f: number) => zoom([14, 11, -46], [0, 6.5, 8], 42, pushK(f, 237, 0.0015, 0.006, 35));
 // shot 3: low front of the column -> boots CU ("every boot")
 const S3a = (f: number) => { const F = Fz(3, f); return dolly([1.1, D0 + 1.45, F - 6.2], [0, D0 + 1.3, F + 0.6], pushK(f, 283, 0.0025)); };
 const S3b = (f: number) => { const F = Fz(3, f); return dolly([0.5, D0 + 0.36, F - 3.5], [0, D0 + 0.3, F + 0.4], pushK(f, 333, 0.0018), { fov: 36 }); };
@@ -198,7 +201,7 @@ const S15c = (f: number): Shot => {
 const CAMS: Record<number, Key[]> = {
   1: [
     { f: 0, s: S1a },
-    { f: 30, dur: 37, s: S1b }, // centred on 48 ("knock down"), 129 px + 64 % zoom
+    { f: 30, cut: true, s: S1b }, // CUT (was a 37 f glide): the glide threaded the hangers — bars across the soldiers at ~1.5 s — and read as a whip
     { f: 72, dur: 32, s: S1c }, // centred on 88 ("just"), roll -0.04 -> +0.04 (4.6 deg)
   ],
   2: [
