@@ -55,9 +55,24 @@ export const layersAt = (f: number): { id: number; alpha: number }[] => {
 };
 
 /** the wave's advance across shot 2 (pure function of frame): front z from -26 m
- *  (far down the street) to +4 m (8 m from the lens), height 6.2 -> 7.6 m. */
-export const waveU = (f: number) => smooth((f - 73) / 146);
-export const waveZ = (f: number) => lerp(-26, 4, waveU(f));
+ *  (far down the street) to -3 m — the front STOPS ~14 m from the lens. It must never
+ *  reach the camera: at +4 m the last frames were nothing but brown (the wave filled
+ *  the frame, the second surge hid the runners, a barrel filled the lens). The wave
+ *  still advances 23 m and looms large behind the runners; the flood ARRIVING is
+ *  shot 3's job. Height 6.2 -> 7.6 m.
+ *  THREE SURGES, not one smooth glide: burst to 42% (f73-124), a beat of hesitation,
+ *  burst to 75% (f124-168), then a slow creep to 100% (f168-219). smooth() has zero
+ *  slope at its ends, so the wave visibly hesitates between bursts. */
+export const waveU = (f: number) => {
+  const u = clamp01((f - 73) / 146);
+  if (u <= 0) return 0;
+  if (u >= 1) return 1;
+  const s1 = smooth(u / 0.35) * 0.42;
+  const s2 = u < 0.35 ? 0 : smooth((u - 0.35) / 0.3) * 0.33;
+  const s3 = u < 0.65 ? 0 : smooth((u - 0.65) / 0.35) * 0.25;
+  return s1 + s2 + s3;
+};
+export const waveZ = (f: number) => lerp(-26, -3, waveU(f));
 export const waveH = (f: number) => lerp(6.2, 7.6, waveU(f));
 
 export type Cam = { pos: V3; look: V3; fov: number; roll: number };
@@ -70,9 +85,12 @@ const KEYS: Record<number, Key[]> = {
     { f: 0, pos: [0, 1.6, 16], look: [0, 4.0, -34], fov: 52 },
     { f: 72, pos: [0, 1.6, 13.5], look: [0, 4.0, -34], fov: 52 },
   ],
-  2: [ // low, looking down the street at the oncoming wave; slow push-in as it advances
+  2: [ // low, looking down the street at the oncoming wave; the camera DRIFTS mid-shot
+    // (f150: left, lower, closer, tighter fov, looking slightly right) so 147 frames are
+    // not one identical slow push-in — a new angle on the wave + runners, then back.
     { f: 73, pos: [0, 1.4, 14], look: [0, 2.2, -10], fov: 52 },
-    { f: 219, pos: [0, 1.4, 12], look: [0, 2.2, -10], fov: 52 },
+    { f: 150, pos: [-1.6, 1.05, 12.6], look: [0.6, 1.9, -5], fov: 48 },
+    { f: 219, pos: [0, 1.4, 11], look: [0, 2.2, -10], fov: 52 },
   ],
   3: [ // slow push-in on the big speedometer dial; flooded street behind it
     { f: 220, pos: [0, 1.7, 11], look: [0.3, 1.1, 2], fov: 50 },
@@ -82,9 +100,16 @@ const KEYS: Record<number, Key[]> = {
 
 export const camAt = (id: number, f: number): Cam => {
   const ks = KEYS[id] ?? KEYS[1];
-  const a = ks[0], b = ks[ks.length - 1];
-  const u = smooth((f - a.f) / Math.max(1, b.f - a.f));
-  return { pos: lerp3(a.pos, b.pos, u), look: lerp3(a.look, b.look, u), fov: lerp(a.fov, b.fov, u), roll: 0 };
+  if (f <= ks[0].f) { const k = ks[0]; return { pos: [...k.pos], look: [...k.look], fov: k.fov, roll: 0 }; }
+  for (let i = 0; i < ks.length - 1; i++) {
+    const a = ks[i], b = ks[i + 1];
+    if (f <= b.f) {
+      const u = smooth((f - a.f) / Math.max(1, b.f - a.f));
+      return { pos: lerp3(a.pos, b.pos, u), look: lerp3(a.look, b.look, u), fov: lerp(a.fov, b.fov, u), roll: 0 };
+    }
+  }
+  const l = ks[ks.length - 1];
+  return { pos: [...l.pos], look: [...l.look], fov: l.fov, roll: 0 };
 };
 
 /** thin-lens DOF: focus defaults to the look target; cInf 0 on the wide, up to 8 on the

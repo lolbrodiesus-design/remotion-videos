@@ -648,7 +648,7 @@ export const bodySide = (p: Pen, o: Outfit, opts: SideOpts) => {
     hipY = ankY - Math.sqrt(Math.max(1, Leff * Leff - stance.x * stance.x));
     for (const [L, near] of [[fL, false], [nL, true]] as const)
       legs.push({ ank: [300 + L.x, ankY - L.h], pitch: L.stance ? 0 : rad(35 * Math.sin(Math.PI * L.s) * (1 - 1.6 * L.s)), near });
-    lean = 4 + 3 * Math.cos(2 * two * phase); // 7 deg at contact, 1 deg at passing
+    lean = 6 + 4 * Math.cos(2 * two * phase); // 10 deg at contact, 2 deg at passing: a hard forward drive
     nearFwd = nL.x / (S / 2);
   } else if (mode === "push") {
     hipY = ankY - 0.87 * legLen;
@@ -700,9 +700,12 @@ export const bodySide = (p: Pen, o: Outfit, opts: SideOpts) => {
     }
     near = [S, [(S[0] + hN[0]) / 2, (S[1] + hN[1]) / 2 + 0.06 * HH], hN];
     far = [S, [(S[0] + hN[0]) / 2 - 4 * u, (S[1] + hN[1]) / 2 - 0.02 * HH], [hN[0] - 6 * u, hN[1] - 0.08 * HH]];
-  } else if (mode === "flee") { // both arms thrown up-forward while running, hands above the crown
-    near = [S, [S[0] + 30 * u, S[1] - 0.55 * HH], [S[0] + 72 * u, S[1] - 1.15 * HH]];
-    far = [S, [S[0] + 18 * u, S[1] - 0.5 * HH], [S[0] + 46 * u, S[1] - 1.0 * HH]];
+  } else if (mode === "flee") { // both arms thrown up-forward while running, hands above the crown —
+    // PUMPING with the stride (near arm and far arm in opposite phase), so the upper body
+    // is not a statue while the legs scissor: the hands rise and fall ~0.2 head-height.
+    const pump = Math.sin(two * phase), pumpF = Math.sin(two * phase + Math.PI);
+    near = [S, [S[0] + (30 + 14 * pump) * u, S[1] - (0.55 + 0.12 * pump) * HH], [S[0] + (72 + 22 * pump) * u, S[1] - (1.15 + 0.18 * pump) * HH]];
+    far = [S, [S[0] + (18 + 12 * pumpF) * u, S[1] - (0.5 + 0.1 * pumpF) * HH], [S[0] + (46 + 18 * pumpF) * u, S[1] - (1.0 + 0.15 * pumpF) * HH]];
   } else if (rifle) { near = [S, [S[0] - 4 * u, S[1] + 0.42 * HH], B0]; far = mode === "march" ? swingArm(rad(30) * nearFwd) : swingArm(0); }
   else { near = swingArm(rad(-30) * nearFwd); far = mode === "march" ? swingArm(rad(30) * nearFwd) : null; }
   if (far) { p.stroke(curve(far[0], far[1], far[2]), 5.2 * u, farArm); p.dot(far[2][0], far[2][1], 5.5 * u); }
@@ -885,6 +888,53 @@ export const fxContact = (p: Pen, col: string) => {
   const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
   for (const [r, k] of [[0, 0], [0.32, 0.02], [0.5, 0.22], [0.66, 0.58], [0.82, 0.88], [1, 1]] as const) gr.addColorStop(r, mix(col, WHITE, k));
   g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+};
+
+/** flat molasses foot splash on a 128 x 128 canvas: a starburst radiating from the
+ *  planted foot + flung droplets. Drawn flat on the ground under a running figure;
+ *  the card's size pulses with the footfall (see cast.ts), so the splash reads as
+ *  kicking up fresh with every step instead of sitting there. (Distinct from the
+ *  template's fxSplash, a blue water crown on an 800 x 800 canvas.) */
+export const fxMolassesSplash = (p: Pen) => {
+  const g = p.g;
+  g.clearRect(0, 0, 128, 128);
+  // starburst tongues radiating from the foot (centre)
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2 + 0.35, len = 34 + ((i * 37) % 22), w = 7 + ((i * 13) % 6);
+    g.fillStyle = i % 2 ? "rgba(190,128,52,0.95)" : "rgba(140,82,26,0.95)";
+    g.beginPath();
+    g.ellipse(64 + Math.cos(a) * len * 0.55, 64 + Math.sin(a) * len * 0.55, w, len / 2, a, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.fillStyle = "rgba(233,178,92,0.95)"; g.beginPath(); g.ellipse(64, 64, 26, 15, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(110,58,16,0.9)"; g.beginPath(); g.ellipse(64, 64, 16, 9, 0, 0, Math.PI * 2); g.fill();
+  // flung droplets around the burst
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.9, d = 44 + ((i * 29) % 16);
+    g.fillStyle = i % 2 ? "rgba(233,178,92,0.95)" : "rgba(110,58,16,0.9)";
+    g.beginPath(); g.arc(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, 3 + ((i * 7) % 4), 0, Math.PI * 2); g.fill();
+  }
+};
+
+/** spray crown at the foot of the wave on a 128 x 256 canvas: droplets arcing up out of
+ *  a foam base. Vertical card, camera-facing; the card's size pulses per frame (see
+ *  cast.ts), so the spray at the wave's foot churns instead of standing still. */
+export const fxSpray = (p: Pen, seed = 0) => {
+  const g = p.g;
+  g.clearRect(0, 0, 128, 256);
+  // foam base
+  g.fillStyle = "rgba(233,178,92,0.9)";
+  g.beginPath(); g.ellipse(64, 232, 56, 20, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(190,128,52,0.85)";
+  g.beginPath(); g.ellipse(64, 238, 44, 14, 0, 0, Math.PI * 2); g.fill();
+  // droplet arcs rising from the base, seeded so each spray card differs
+  for (let i = 0; i < 14; i++) {
+    const a = -Math.PI / 2 + ((i - 6.5) / 6.5) * 0.9, h = 60 + ((i * 53 + seed * 31) % 130);
+    const x = 64 + Math.cos(a) * h * 0.55, y = 232 - Math.abs(Math.sin(a)) * h - ((i * 17) % 30);
+    const r = 4 + ((i * 11 + seed * 7) % 7);
+    g.fillStyle = i % 3 === 0 ? "rgba(255,222,150,0.95)" : i % 3 === 1 ? "rgba(226,164,80,0.95)" : "rgba(140,82,26,0.9)";
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
 };
 
 /** floating wooden plank, side-on, on a 320 x 110 canvas */

@@ -5,11 +5,11 @@
 // outlines their quads.
 import * as THREE from "three";
 import {
-  Pen, bodyFront, bodySide, fxShadow, fxContact, townsfolk,
+  Pen, bodyFront, bodySide, fxShadow, fxContact, fxMolassesSplash, fxSpray, townsfolk,
   Outfit, Expr, FrontOpts, SideOpts,
 } from "./toon";
 import {
-  FPS, clamp01, smooth, SHOTS,
+  FPS, clamp01, SHOTS, waveZ,
 } from "./story";
 import type { LightName } from "./lights";
 import { NOINK } from "./ink";
@@ -252,18 +252,35 @@ export const stage = (id: number, t: number, cam: CamInfo): Stage => {
       break;
     }
     case 2: {
-      const f = t * FPS, u = smooth((f - 73) / 146); // runners gain ~3.5 m on the wave across the shot
-      // side-view FLEE pose (march run cycle, both arms thrown up): the left runner flees
-      // screen-left, the right two screen-right — scattering away from the wave, past the lens.
-      const run = (i: number, o: Outfit, okey: string, x: number, z0: number, ph: number, mirror: boolean) => {
-        const z = z0 + u * 3.5;
-        const so: SideOpts = { mode: "flee", phase: (t * 2.4 + ph) % 1, expr: "shock" as Expr, blink: lidAt(t, i), stride: 1.15 };
+      const f = t * FPS, lu = clamp01((f - 73) / 146); // LINEAR progress: constant speed,
+      // so the leg cycle can be matched to the ground speed and the feet actually plant
+      // (the old smootherstep + 2.4 Hz cycle made the feet slide ~3.7 m/s while the body
+      // glided at 0.71 m/s — running in place). Path ~6.1 m in 4.87 s ≈ 1.26 m/s.
+      // side-view FLEE pose (run cycle, both arms thrown up and PUMPING), scattering
+      // diagonally away from the wave, past the lens: each runner its own stride,
+      // cadence and drift, so they never move in lockstep.
+      const run = (i: number, o: Outfit, okey: string, x0: number, z0: number, dx: number, dz: number, stride: number, ph: number, mirror: boolean) => {
+        const pathLen = Math.hypot(dx, dz), speed = pathLen / (146 / FPS);
+        const freq = speed / (0.8 * stride); // strides/s: stride world length 0.8*stride m per cycle
+        const x = x0 + lu * dx, z = z0 + lu * dz;
+        const phase = (t * freq + ph) % 1;
+        const so: SideOpts = { mode: "flee", phase, expr: "shock" as Expr, blink: lidAt(t, i), stride };
         out.places.push(person(cam, who(i, o, okey), x, 0, z, { side: true, mirror }, {}, so, 1));
         blob(out, x, 0.02, z, 1);
+        // foot splash: peaks at each footfall (phase 0 and 0.5), fades between steps
+        const pulse = 0.55 + 0.75 * (1 - Math.abs(Math.sin(Math.PI * phase)));
+        out.fx.push({ key: "splash", cw: 128, ch: 128, draw: (p) => fxMolassesSplash(p), x, y: 0.03, z, w: 0.9 * pulse, h: 0.7 * pulse, flat: true });
       };
-      run(4, COAT[0], "coat0", -3.2, -2, 0, true); // kept clear of the fallen figure (x -1.6), who hid him
-      run(5, townsfolk(3), "woman3", 0.2, 0, 0.33, false);
-      run(6, COAT[3], "coat3", 1.9, 2, 0.66, false);
+      run(4, COAT[0], "coat0", -3.2, -2, -1.4, 6.0, 1.0, 0, true);
+      run(5, townsfolk(3), "woman3", 0.2, 0, 1.0, 6.0, 1.15, 0.33, false);
+      run(6, COAT[3], "coat3", 1.9, 2, 1.4, 6.0, 1.3, 0.66, false);
+      // spray churning at the foot of the wave: six cards spread across the front,
+      // each pulsing on its own phase so the foot of the wave never sits still
+      for (let i = 0; i < 6; i++) {
+        const sx = -5 + i * 2, sz = waveZ(f) + 0.8;
+        const sp = 0.6 + 0.7 * Math.max(0, Math.sin(t * 3.5 + i * 1.9));
+        out.fx.push({ key: `spray|${i}`, cw: 128, ch: 256, draw: (p) => fxSpray(p, i), x: sx, y: 0.5, z: sz, w: 1.1 * sp, h: 1.4 * sp });
+      }
       const fall: FrontOpts = { mode: "fall", expr: "shock" as Expr, blink: lidAt(t, 7) };
       out.places.push(person(cam, who(7, COAT[1], "coat1"), -1.6, 0, 4, front, fall, {}, 1));
       blob(out, -1.6, 0.02, 4, 1);

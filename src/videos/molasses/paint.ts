@@ -764,6 +764,37 @@ export const molassesHD = () => ctex("molassesHD", 1024, 1024, (g, r) => {
   }
 });
 
+/** molasses flow texture: the same streaks/ribbons/bubbles/gloss as molassesHD but with NO
+ *  crest band, drip tongues or crest foam — the curtain and surge scroll this texture
+ *  vertically (world.ts poseWave) so the liquid visibly flows, and a crest band in the
+ *  image would slide down the face as it scrolled. The crest is 3D spheres instead. */
+export const molassesFlowHD = () => ctex("molassesFlowHD", 1024, 1024, (g, r) => {
+  const S = 1024;
+  g.fillStyle = "#6e3a10"; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 90; i++) { // vertical flow streaks, darker and lighter
+    const x = r() * S, w = 6 + r() * 26, light = r() < 0.45;
+    g.fillStyle = light ? `rgba(224,150,60,${0.14 + r() * 0.2})` : `rgba(28,12,3,${0.12 + r() * 0.18})`;
+    const y0 = r() * S * 0.4, len = 200 + r() * 700;
+    g.fillRect(x, y0, w, len);
+  }
+  for (let i = 0; i < 34; i++) { // long amber ribbons catching the light
+    const x = r() * S, y = 120 + r() * (S - 200), len = 120 + r() * 420, w = 3 + r() * 7;
+    g.strokeStyle = `rgba(240,176,84,${0.35 + r() * 0.35})`; g.lineWidth = w; g.lineCap = "round";
+    g.beginPath(); g.moveTo(x, y);
+    g.bezierCurveTo(x + (r() - 0.5) * 60, y + len * 0.33, x + (r() - 0.5) * 60, y + len * 0.66, x + (r() - 0.5) * 40, y + len);
+    g.stroke();
+  }
+  for (let i = 0; i < 240; i++) { // bubbles: dark ring + bright catch-light
+    const x = r() * S, y = r() * S, rad = 2 + r() * 9;
+    g.fillStyle = "rgba(30,12,4,0.55)"; g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill();
+    g.fillStyle = "rgba(255,214,140,0.75)"; g.beginPath(); g.arc(x - rad * 0.35, y - rad * 0.35, rad * 0.32, 0, TAU); g.fill();
+  }
+  for (let i = 0; i < 60; i++) { // gloss highlights: soft white-amber sheen patches
+    const x = r() * S, y = 150 + r() * (S - 200), rad = 30 + r() * 90;
+    wrap2(S, S, x, y, rad, (xx, yy) => blotch(g, xx, yy, rad, 1.6, "255,222,150", 0.16));
+  }
+});
+
 /** riveted steel tank plates: grey-blue steel, horizontal plate bands with a dark seam,
  *  rivet rows along every seam, vertical seams, rust streaks running down from the seams. */
 export const rivetHD = () => ctex("rivetHD", 1024, 1024, (g, r) => {

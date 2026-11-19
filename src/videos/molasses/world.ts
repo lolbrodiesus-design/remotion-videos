@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { staticFile } from "remotion";
 import { V, buildMolassesStreet, buildWaveSet, buildAftermath, Kit, Ray } from "./build";
-import { ctex, cloudHD, molassesHD } from "./paint";
+import { ctex, cloudHD, molassesFlowHD } from "./paint";
 import { LIGHTS, LOOK, LightPreset, LightName } from "./lights";
 import { TONE, CHAR, untone } from "./shade";
 import { NOINK } from "./ink";
@@ -60,6 +60,7 @@ const sightLines = (): Ray[] => {
 
 // ---------------- the wave: a vertical curtain across the street, rebuilt per frame ----------------
 const WAVE_NX = 25, WAVE_NY = 13, WAVE_HALF_W = 6.5;
+const SURGE_NX = 15, SURGE_NY = 8; // the second, smaller leading surge
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const wsmooth = (x: number) => { const u = clamp01(x); return u * u * (3 - 2 * u); };
 
@@ -74,6 +75,10 @@ export class World {
   private streetG = new THREE.Group(); private waveG = new THREE.Group(); private payoffG = new THREE.Group();
   private waveMesh: THREE.Mesh; private waveGeo: THREE.BufferGeometry;
   private surge: THREE.Mesh; private roll: THREE.Group;
+  private curtainTex: THREE.Texture; private surgeTex: THREE.Texture; private surgeWaveTex: THREE.Texture;
+  private crest: THREE.Mesh[] = []; private crestBase: { x: number; y: number; z: number; ph: number }[] = [];
+  private surgeWave: THREE.Mesh; private surgeWaveGeo: THREE.BufferGeometry;
+  private tumble: { m: THREE.Mesh; x0: number; zoff: number; spin: number; ph: number }[] = [];
   private sunDisc: THREE.Sprite; private sunHalo: THREE.Sprite;
   private sunCache = new Map<number, THREE.Vector3>();
   private cloudMaps: Record<LightName, THREE.Texture[]>;
@@ -141,7 +146,14 @@ export class World {
     // sits behind it, so the two-tone shade turned the whole face dark blue-brown. With
     // the shot-2 sun moved behind the lens (story.ts sunAz 150) + plain lighting + the
     // brighter molasses texture, the face reads as warm glossy liquid.
-    const waveMat = new THREE.MeshLambertMaterial({ map: molassesHD(), side: THREE.DoubleSide });
+    // FLOW: the curtain and the surge each get their OWN clone of the flow texture
+    // (molassesFlowHD has no crest band to drag down the face) so poseWave() can scroll
+    // their offsets independently — the face streams downward, the ground surge streams
+    // toward the lens. The crest spheres share the curtain's material.
+    this.curtainTex = molassesFlowHD().clone(); this.curtainTex.needsUpdate = true;
+    this.surgeTex = molassesFlowHD().clone(); this.surgeTex.needsUpdate = true; this.surgeTex.repeat.set(2, 3);
+    this.surgeWaveTex = molassesFlowHD().clone(); this.surgeWaveTex.needsUpdate = true;
+    const waveMat = new THREE.MeshLambertMaterial({ map: this.curtainTex, side: THREE.DoubleSide });
     this.waveGeo = new THREE.BufferGeometry();
     const nv = WAVE_NX * WAVE_NY;
     this.waveGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nv * 3), 3));
@@ -159,20 +171,68 @@ export class World {
     this.waveMesh.castShadow = true; this.waveMesh.receiveShadow = true; this.waveMesh.frustumCulled = false;
     this.waveG.add(this.waveMesh);
     const surgeGeo = new THREE.PlaneGeometry(1, 1); surgeGeo.rotateX(-Math.PI / 2);
-    this.surge = new THREE.Mesh(surgeGeo, new THREE.MeshLambertMaterial({ map: molassesHD() }));
+    this.surge = new THREE.Mesh(surgeGeo, new THREE.MeshLambertMaterial({ map: this.surgeTex }));
     this.surge.receiveShadow = true; this.surge.frustumCulled = false;
     this.waveG.add(this.surge);
     // the crest: a bumpy roll of overlapping glossy spheres along the top of the curtain —
     // a foamy rolled-over lip. (A single cylinder read as a flat wooden beam.)
+    // VARIED, not 13 identical balls: 17 squashed spheres, radii 1.15–1.35, spaced
+    // 0.75 apart so neighbours overlap by ~1.5 m — they merge into one continuous
+    // bumpy ROLL, not a row of balls. (A tube behind them read as a wooden beam, so
+    // there is no tube: the density of the overlap is what closes the crest. The
+    // breathing in poseWave keeps the silhouette changing every frame.)
     this.roll = new THREE.Group();
-    const jr = (i: number) => Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
-    for (let i = 0; i < 13; i++) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.85 + jr(i) * 0.3, 18, 14), waveMat);
+    const CREST: [number, number, number, number][] = [ // x, y, z, radius
+      [-6.0, 0.03, 0.0, 1.2], [-5.25, -0.04, 0.08, 1.3], [-4.5, 0.05, -0.08, 1.15],
+      [-3.75, -0.03, 0.05, 1.35], [-3.0, 0.04, -0.05, 1.2], [-2.25, -0.05, 0.1, 1.3],
+      [-1.5, 0.03, -0.1, 1.15], [-0.75, -0.04, 0.05, 1.35], [0.0, 0.05, -0.05, 1.2],
+      [0.75, -0.03, 0.08, 1.3], [1.5, 0.04, -0.08, 1.15], [2.25, -0.05, 0.05, 1.35],
+      [3.0, 0.03, -0.1, 1.2], [3.75, -0.04, 0.08, 1.3], [4.5, 0.05, -0.05, 1.15],
+      [5.25, -0.03, 0.05, 1.35], [6.0, 0.04, 0.0, 1.2],
+    ];
+    CREST.forEach(([cx, cy, cz, cr], i) => {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(cr, 18, 14), waveMat);
       s.castShadow = true; s.receiveShadow = false; s.frustumCulled = false;
-      s.position.set(-6 + i, jr(i + 40) * 0.5 - 0.1, jr(i + 80) * 0.8 - 0.2);
-      this.roll.add(s);
-    }
+      s.position.set(cx, cy, cz);
+      this.roll.add(s); this.crest.push(s);
+      this.crestBase.push({ x: cx, y: cy, z: cz, ph: i * 1.7 });
+    });
     this.waveG.add(this.roll);
+    // second, smaller surge: a low leading tongue racing ahead of the main front
+    const surgeWaveMat = new THREE.MeshLambertMaterial({ map: this.surgeWaveTex, side: THREE.DoubleSide });
+    this.surgeWaveGeo = new THREE.BufferGeometry();
+    const snv = SURGE_NX * SURGE_NY;
+    this.surgeWaveGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(snv * 3), 3));
+    this.surgeWaveGeo.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(snv * 3), 3));
+    const suv = new Float32Array(snv * 2);
+    for (let j = 0; j < SURGE_NY; j++) for (let i = 0; i < SURGE_NX; i++) { suv[(j * SURGE_NX + i) * 2] = i / (SURGE_NX - 1); suv[(j * SURGE_NX + i) * 2 + 1] = j / (SURGE_NY - 1); }
+    this.surgeWaveGeo.setAttribute("uv", new THREE.BufferAttribute(suv, 2));
+    const sidx: number[] = [];
+    for (let j = 0; j < SURGE_NY - 1; j++) for (let i = 0; i < SURGE_NX - 1; i++) {
+      const a = j * SURGE_NX + i, b = a + 1, c = a + SURGE_NX, d = c + 1;
+      sidx.push(a, c, d, a, d, b);
+    }
+    this.surgeWaveGeo.setIndex(sidx);
+    this.surgeWave = new THREE.Mesh(this.surgeWaveGeo, surgeWaveMat);
+    this.surgeWave.castShadow = true; this.surgeWave.receiveShadow = true; this.surgeWave.frustumCulled = false;
+    this.waveG.add(this.surgeWave);
+    // debris tumbling forward just ahead of the front (the static set dressing in
+    // buildWaveSet never moves; these four pieces do — posed per frame in poseWave)
+    const woodM = new THREE.MeshLambertMaterial({ color: "#7a5a3c" });
+    const darkM = new THREE.MeshLambertMaterial({ color: "#3a3230" });
+    const barrelGeo = new THREE.CylinderGeometry(0.32, 0.36, 0.9, 12);
+    const crateGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+    const plankGeo = new THREE.BoxGeometry(2.2, 0.08, 0.3);
+    const tumbleDefs: [THREE.BufferGeometry, THREE.Material, number, number, number, number][] = [
+      [barrelGeo, woodM, -3.5, 2.5, 4.2, 0.0], [crateGeo, darkM, 1.5, 3.5, 5.1, 2.1],
+      [plankGeo, woodM, 3.8, 4.5, 3.3, 4.4], [barrelGeo, darkM, -1.2, 5.5, 4.7, 1.3],
+    ];
+    for (const [geo, mat, x0, zoff, spin, ph] of tumbleDefs) {
+      const m = new THREE.Mesh(geo, mat);
+      m.castShadow = true; m.frustumCulled = false;
+      this.waveG.add(m);
+      this.tumble.push({ m, x0, zoff, spin, ph });
+    }
   }
 
   /** camera-relative sun, frozen per shot: the shot's mean view direction turned by az toward screen right, lifted by el */
@@ -198,9 +258,13 @@ export class World {
 
   /** rebuild the wave curtain for frame f: front z + height from story.ts, crest curling
    *  toward the camera, top edge drooping forward into the crest roll, wavy top edge,
-   *  slight sideways undulation. */
+   *  slight sideways undulation. EVERYTHING time-varying now: the crest line wobbles in
+   *  time, two travelling waves churn the face, the textures scroll, the crest breathes,
+   *  a second smaller surge races ahead and debris tumbles — no two frames share the
+   *  same surface (the old version was a rigid shape gliding on a smootherstep with a
+   *  static texture, which is exactly why the shot read as frozen). */
   private poseWave(f: number) {
-    const zf = waveZ(f), H = waveH(f);
+    const t = f / FPS, zf = waveZ(f), H = waveH(f);
     const pos = this.waveGeo.attributes.position.array as Float32Array;
     for (let j = 0; j < WAVE_NY; j++) {
       const v = j / (WAVE_NY - 1);
@@ -208,20 +272,64 @@ export class World {
       const droop = 0.9 * wsmooth((v - 0.85) / 0.15); // the very top folds forward and DOWN into the crest
       for (let i = 0; i < WAVE_NX; i++) {
         const u = i / (WAVE_NX - 1), x = (u * 2 - 1) * WAVE_HALF_W;
-        const topWobble = 1 + 0.05 * Math.sin(x * 0.8 + 1.2); // wavy crest line
+        const topWobble = 1 + 0.03 * Math.sin(x * 0.8 + 1.2 + t * 2.0); // crest line wobbles IN TIME — kept shallow so the top edge never dips below the roll's underside
+        const churn = 0.18 * Math.sin(x * 1.3 - t * 5.5 + v * 2.5) + 0.07 * Math.sin(x * 3.1 - t * 10 + v * 4); // travelling churn
         const y = v * H * topWobble - droop;
-        const z = zf + curl + droop * 0.6 + 0.3 * Math.sin(x * 0.7 + 0.6) * v;
+        const z = zf + curl + droop * 0.6 + 0.3 * Math.sin(x * 0.7 + 0.6) * v + churn * v;
         const o = (j * WAVE_NX + i) * 3;
         pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
       }
     }
     this.waveGeo.attributes.position.needsUpdate = true;
     this.waveGeo.computeVertexNormals();
-    this.roll.position.set(0, H - 0.2, zf + 2.5);
+    // texture flow: offset.y up moves features toward lower v — DOWN the face on the
+    // curtain, TOWARD the lens on the ground surge (v=0 is the near edge there)
+    this.curtainTex.offset.y = (t * 0.12) % 1;
+    this.surgeTex.offset.y = (t * 0.5) % 1;
+    this.surgeWaveTex.offset.y = (t * 0.3) % 1;
+    // the crest ROLLS: each sphere breathes and bobs on its own phase — the breathing
+    // scales the SQUASHED axes (x 1, y 0.55, z 0.9), so the roll stays a flat-topped
+    // lip and never puffs back into balls. The roll sits LOW (H-0.7) so the tube's
+    // bottom (H-1.3) is below the curtain's lowest top-edge dip — a higher roll left
+    // a slot between the tube's bottom-front edge and a dipped top edge, seen from
+    // the low camera as a white triangle (crest-zoom.png).
+    this.roll.position.set(0, H - 0.7, zf + 2.5);
+    for (let i = 0; i < this.crest.length; i++) {
+      const b = this.crestBase[i], m = this.crest[i], br = 1 + 0.13 * Math.sin(t * 3.1 + b.ph);
+      m.scale.set(br, 0.55 * br, 0.9);
+      m.position.set(b.x, b.y + 0.12 * Math.sin(t * 2.3 + b.ph * 2), b.z + 0.15 * Math.sin(t * 1.9 + b.ph));
+    }
     // the surge: glossy molasses already on the ground from the wave's foot to past the lens
     const len = 16 - zf;
     this.surge.position.set(0, 0.06, (zf + 16) / 2);
     this.surge.scale.set(13, 1, len);
+    // second, smaller surge: a low leading tongue racing ahead of the main front
+    this.poseSurgeWave(t, zf);
+    // debris tumbling forward just ahead of the front, swallowed as it nears the lens
+    for (const d of this.tumble) {
+      const zz = zf + d.zoff;
+      d.m.position.set(d.x0 + 0.3 * Math.sin(t * 1.3 + d.ph), 0.35 + 0.15 * Math.sin(t * 2.7 + d.ph) - Math.max(0, zz - 6.5) * 0.6, zz);
+      d.m.rotation.set(t * d.spin + d.ph, d.ph, t * d.spin * 0.7 + d.ph);
+    }
+  }
+
+  /** the low leading tongue ahead of the main front: ~2 m tall, its own time-varying
+   *  top wobble, advancing with the wave. */
+  private poseSurgeWave(t: number, zf: number) {
+    const H2 = 2.0 + 0.25 * Math.sin(t * 2.2), z2 = zf + 2.5; // tight to the main front's foot — it must read as one flood, not a second wall that hides the runners
+    const pos = this.surgeWaveGeo.attributes.position.array as Float32Array;
+    for (let j = 0; j < SURGE_NY; j++) {
+      const v = j / (SURGE_NY - 1);
+      for (let i = 0; i < SURGE_NX; i++) {
+        const u = i / (SURGE_NX - 1), x = (u * 2 - 1) * WAVE_HALF_W;
+        const y = v * H2 * (1 + 0.06 * Math.sin(x * 1.1 - t * 4 + 0.7));
+        const z = z2 + 0.5 * v + 0.25 * Math.sin(x * 1.5 - t * 6) * v;
+        const o = (j * SURGE_NX + i) * 3;
+        pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+      }
+    }
+    this.surgeWaveGeo.attributes.position.needsUpdate = true;
+    this.surgeWaveGeo.computeVertexNormals();
   }
 
   update(id: number, f: number, cam: THREE.PerspectiveCamera, scene: THREE.Scene) {
