@@ -1,0 +1,302 @@
+# Zack D Legs Short — full Blender render, 1,248 frames, 20 parallel jobs.
+#
+# WHAT THIS IS
+#   Renders the 42-second Zack D "He Sacrificed His Legs for Money" Short
+#   (1080x1920, 30 fps, Eevee) on 20 GitHub runners in parallel, ~60 frames
+#   per job. Measured local pace is ~50-65 s/frame at 1080x1920 Eevee, so a
+#   60-frame job should take roughly 30-65 min on a 4-core runner and the
+#   whole 1,248-frame video should land in roughly 40-70 min wall time,
+#   versus ~18-23 hours on the local machine.
+#
+# HOW IT IS TRIGGERED
+#   workflow_dispatch ONLY, with a required `jobs` JSON input. There is
+#   deliberately NO push trigger: a push-triggered run would have no jobs
+#   input and fail. The dispatcher is pipeline/dispatch.sh, which builds the
+#   jobs JSON from the finished scene files on disk.
+#   Each job: {"id","scene","blend_url","start","end","offset"}
+#     id        - short job id, e.g. "S5-03" (used in artifact names)
+#     scene     - scene file stem, e.g. "scene5"
+#     blend_url - direct download URL of the scene .blend, a GitHub Release
+#                 asset, e.g.
+#                 https://github.com/lolbrodiesus-design/remotion-videos/releases/download/zackd-blends-v1/scene5.blend
+#     start/end - LOCAL frame numbers inside the .blend (each scene file
+#                 starts at frame 1)
+#     offset    - added to local frame numbers to get GLOBAL timeline frames
+#                 (S1 +0, S2 +180, S3 +480, S4 +660, S5 +720, S6 +1020)
+#
+# PREREQUISITES (all must be true before dispatching)
+#   1. This file is in the repo at .github/workflows/blender-zackd-render.yml.
+#      It must reach the repo via the GitHub WEBSITE, never the API — the
+#      Muse GitHub App lacks the workflows permission and the API 403s.
+#   2. Every scene .blend is uploaded as a Release asset under tag
+#      zackd-blends-v1 (see pipeline/upload_blends.sh). The .blends are
+#      126-241 MB each — over the 100 MB Contents-API limit — so Release
+#      assets are the only route.
+#   3. Every scene .blend is render-ready: engine BLENDER_EEVEE, resolution
+#      1080x1920 at 100%, 30 fps, PNG output, and NO unpacked external
+#      images. The workflow re-checks this per job and FAILS LOUDLY on any
+#      mismatch (see "Verify render settings"). Known gaps at time of
+#      writing (2026-11-21): scene3 has 2 unpacked images, scene5/scene6
+#      are still 540x960 — see pipeline/DEPENDENCY_CHECK.md.
+#
+# ARTIFACTS
+#   Per job:  zackd-<id>  (global-numbered PNG frames + timing-<id>.txt)
+#   Join job: zackd-frames-full (all 1,248 PNGs), zackd-preview (30 fps
+#             H.264 preview of the whole Short), and render-status.json
+#             committed to the repo root.
+#
+# FALLBACKS
+#   - If a 60-frame job is too slow (Eevee on software GL varies by scene),
+#     re-dispatch with 30-frame jobs (40 jobs; they queue in 2 waves of 20).
+#     dispatch.sh --frames-per-job 30 does this.
+#   - If direct `blender -b` fails on a runner (no EGL context), the render
+#     step retries once under xvfb-run before failing the job.
+#   - If a runner dies mid-job, re-dispatch just that job id (dispatch.sh
+#     --only S3-02) — artifacts from finished jobs are kept.
+
+name: Zack D Legs Blender Render (1248 frames, 20 parallel jobs)
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: 'JSON array of render jobs: [{"id":"S5-01","scene":"scene5","blend_url":"https://github.com/lolbrodiesus-design/remotion-videos/releases/download/zackd-blends-v1/scene5.blend","start":1,"end":60,"offset":720}]'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    name: ${{ matrix.job.id }} (${{ matrix.job.scene }} frames ${{ matrix.job.start }}-${{ matrix.job.end }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJSON(inputs.jobs) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system GL libs + Xvfb
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libegl1 libxkbcommon0 libxi6 libxrender1 libsm6 libxext6 libxxf86vm1 libxfixes3 libfontconfig1 libglib2.0-0 xvfb curl ca-certificates > /tmp/apt.log 2>&1 || { tail -50 /tmp/apt.log; exit 1; }
+          echo "GL libs installed"
+
+      - name: Cache Blender 4.0.2
+        uses: actions/cache@v4
+        with:
+          path: /tmp/blender-4.0.2-linux-x64
+          key: blender-4.0.2-linux-x64
+
+      - name: Download Blender 4.0.2 (exact version — scenes were built in it)
+        run: |
+          set -euo pipefail
+          if [ -x /tmp/blender-4.0.2-linux-x64/blender ]; then
+            echo "Blender 4.0.2 restored from cache"
+          else
+            cd /tmp
+            curl -fsSL -o blender-4.0.2.tar.xz https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
+            echo "5583a5588736da8858c522ef17fff5d73be59c47a6fe91ad29c6f3263e22086a  blender-4.0.2.tar.xz" | sha256sum -c -
+            tar -xf blender-4.0.2.tar.xz
+            rm blender-4.0.2.tar.xz
+          fi
+          /tmp/blender-4.0.2-linux-x64/blender --version | head -n 1
+          /tmp/blender-4.0.2-linux-x64/blender --version | head -n 1 | grep -q "Blender 4.0.2" || { echo "WRONG BLENDER VERSION"; exit 1; }
+
+      - name: Download scene .blend
+        run: |
+          set -euo pipefail
+          curl -fsSL -o scene.blend "${{ matrix.job.blend_url }}"
+          SIZE=$(stat -c%s scene.blend)
+          echo "scene.blend bytes: $SIZE"
+          test "$SIZE" -gt 1000000 || { echo "Blend download too small — bad URL? ${{ matrix.job.blend_url }}"; exit 1; }
+
+      - name: Verify render settings (fail loudly on mismatch)
+        run: |
+          set -euo pipefail
+          cat > /tmp/check_blend.py <<'PYEOF'
+          import bpy, sys
+          sc = bpy.context.scene
+          r = sc.render
+          start, end = int(sys.argv[-2]), int(sys.argv[-1])
+          print("engine:", r.engine)
+          print("resolution:", r.resolution_x, "x", r.resolution_y, "@", r.resolution_percentage, "%")
+          print("fps:", sc.render.fps, "format:", r.image_settings.file_format)
+          print("scene frames:", sc.frame_start, "-", sc.frame_end)
+          print("job frames:", start, "-", end)
+          errors = []
+          if r.engine != "BLENDER_EEVEE":
+              errors.append(f"engine is {r.engine}, expected BLENDER_EEVEE")
+          if (r.resolution_x, r.resolution_y) != (1080, 1920):
+              errors.append(f"resolution is {r.resolution_x}x{r.resolution_y}, expected 1080x1920")
+          if r.resolution_percentage != 100:
+              errors.append(f"resolution_percentage is {r.resolution_percentage}, expected 100")
+          if sc.render.fps != 30:
+              errors.append(f"fps is {sc.render.fps}, expected 30")
+          if r.image_settings.file_format != "PNG":
+              errors.append(f"format is {r.image_settings.file_format}, expected PNG")
+          if not (sc.frame_start <= start <= end <= sc.frame_end):
+              errors.append(f"job range {start}-{end} outside scene range {sc.frame_start}-{sc.frame_end}")
+          unpacked = [i.name for i in bpy.data.images if i.packed_file is None and i.filepath]
+          if unpacked:
+              errors.append(f"unpacked external images present (would render missing): {unpacked}")
+          if errors:
+              print("RENDER SETTINGS CHECK FAILED:")
+              for e in errors:
+                  print("  -", e)
+              sys.exit(1)
+          print("RENDER SETTINGS CHECK PASSED")
+          PYEOF
+          /tmp/blender-4.0.2-linux-x64/blender --background scene.blend --python /tmp/check_blend.py -- ${{ matrix.job.start }} ${{ matrix.job.end }}
+
+      - name: Render frames ${{ matrix.job.start }}-${{ matrix.job.end }}
+        run: |
+          set -euo pipefail
+          START=$(date +%s)
+          mkdir -p out
+          BLENDER=/tmp/blender-4.0.2-linux-x64/blender
+          if ! $BLENDER -b scene.blend -o "$PWD/out/frame_####" -s ${{ matrix.job.start }} -e ${{ matrix.job.end }} -a > render.log 2>&1; then
+            echo "Direct render failed — retrying once under xvfb-run"
+            tail -30 render.log
+            xvfb-run -a $BLENDER -b scene.blend -o "$PWD/out/frame_####" -s ${{ matrix.job.start }} -e ${{ matrix.job.end }} -a > render2.log 2>&1 || { echo "RENDER FAILED under xvfb-run too"; tail -40 render2.log; exit 1; }
+            mv render2.log render.log
+          fi
+          END=$(date +%s)
+          WALL=$((END - START))
+          EXPECTED=$((${{ matrix.job.end }} - ${{ matrix.job.start }} + 1))
+          GOT=$(ls out/*.png 2>/dev/null | wc -l)
+          echo "rendered $GOT PNGs, expected $EXPECTED, wall ${WALL}s"
+          test "$GOT" -eq "$EXPECTED" || { echo "FRAME COUNT MISMATCH"; ls out/ | head; exit 1; }
+          # Rename local frame numbers to GLOBAL timeline numbers (offset).
+          mkdir -p out-global
+          python3 - "$PWD/out" "$PWD/out-global" ${{ matrix.job.offset }} <<'PYEOF'
+          import glob, os, re, sys
+          src, dst, offset = sys.argv[1], sys.argv[2], int(sys.argv[3])
+          for f in sorted(glob.glob(os.path.join(src, "frame_*.png"))):
+              m = re.search(r"frame_(\d+)\.png$", f)
+              n = int(m.group(1)) + offset
+              os.rename(f, os.path.join(dst, f"frame_{n:04d}.png"))
+          print("renamed with offset", offset)
+          PYEOF
+          ls out-global/ | head -3
+          ls out-global/ | tail -3
+          {
+            echo "job=${{ matrix.job.id }}"
+            echo "scene=${{ matrix.job.scene }}"
+            echo "frames=${{ matrix.job.start }}-${{ matrix.job.end }}"
+            echo "offset=${{ matrix.job.offset }}"
+            echo "frames_rendered=$GOT"
+            echo "wall_seconds=$WALL"
+            echo "size_bytes=$(du -sb out-global | cut -f1)"
+          } > "timing-${{ matrix.job.id }}.txt"
+          cat "timing-${{ matrix.job.id }}.txt"
+          echo "--- render log tail ---"
+          tail -5 render.log
+
+      - name: Upload frames artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zackd-${{ matrix.job.id }}
+          path: |
+            out-global/
+            timing-${{ matrix.job.id }}.txt
+          retention-days: 14
+
+  join:
+    name: Join + verify 1248 frames
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all frame artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: frames
+          pattern: zackd-*
+          merge-multiple: true
+
+      - name: Verify 1-1248 complete, assemble preview, write status
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          python3 - <<'PYEOF'
+          import glob, os, re, sys
+          got = sorted(int(re.search(r"frame_(\d+)\.png$", f).group(1))
+                       for f in glob.glob("frames/frame_*.png"))
+          expected = list(range(1, 1249))
+          missing = sorted(set(expected) - set(got))
+          extra = sorted(set(got) - set(expected))
+          print(f"frames present: {len(got)} / 1248")
+          if missing:
+              print("MISSING:", missing[:50], "..." if len(missing) > 50 else "")
+              sys.exit(1)
+          if extra:
+              print("EXTRA (ignored):", extra[:20])
+          print("FRAME CHECK PASSED: 1-1248 all present")
+          PYEOF
+          ffmpeg -y -framerate 30 -i frames/frame_%04d.png -c:v libx264 -crf 18 -pix_fmt yuv420p zackd-preview.mp4
+          ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,r_frame_rate -of default=noprint_wrappers=1 zackd-preview.mp4
+          ls frames/*.txt | head -25
+          python3 - <<'PYEOF'
+          import glob, json
+          timings = {}
+          total_wall = 0
+          total_frames = 0
+          for f in sorted(glob.glob("frames/timing-*.txt")):
+              t = {}
+              with open(f) as fh:
+                  for line in fh:
+                      k, _, v = line.strip().partition("=")
+                      t[k] = v
+              timings[t["job"]] = t
+              total_wall += int(t["wall_seconds"])
+              total_frames += int(t["frames_rendered"])
+          pace = total_wall / total_frames if total_frames else None
+          status = {
+              "test": "Zack D Legs Short, frames 1-1248 (41.6 seconds), 20 parallel Blender jobs",
+              "total_frames": total_frames,
+              "duration_seconds": 41.6,
+              "resolution": "1080x1920",
+              "engine": "BLENDER_EEVEE",
+              "jobs": timings,
+              "total_render_wall_seconds": total_wall,
+              "seconds_per_frame": pace,
+              "frames_per_minute_per_runner": (60 / pace) if pace else None,
+          }
+          with open("render-status-zackd.json", "w") as fh:
+              json.dump(status, fh, indent=2)
+          print(json.dumps(status, indent=2))
+          PYEOF
+
+      - name: Upload full frames artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zackd-frames-full
+          path: frames/frame_*.png
+          retention-days: 14
+
+      - name: Upload preview video
+        uses: actions/upload-artifact@v4
+        with:
+          name: zackd-preview
+          path: zackd-preview.mp4
+          retention-days: 14
+
+      - name: Commit render-status-zackd.json
+        run: |
+          git config user.name "blender-render-bot"
+          git config user.email "blender-render-bot@users.noreply.github.com"
+          git add render-status-zackd.json
+          git commit -m "Render status: Zack D Legs Short full video (20 Blender chunks)"
+          git push
