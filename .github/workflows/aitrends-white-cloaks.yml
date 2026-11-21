@@ -17,6 +17,11 @@
 #
 # After the run: download all 20 artifacts, verify every chunk's frame count
 # (ffprobe), concat in order 00..19, run audio/mix.py locally, QC and deliver.
+#
+# Fix 2026-11-22: run #1 failed on all 20 jobs at "Install Playwright
+# Chromium" with "Playwright does not support chromium on ubuntu26.04-x64"
+# (ubuntu-latest now resolves to 26.04). Pinned runs-on to ubuntu-24.04,
+# which Playwright 1.56 supports; install-deps step kept as insurance.
 
 name: aiTrends White Cloaks (30s, 20 parallel chunks)
 
@@ -30,7 +35,7 @@ permissions:
 jobs:
   render:
     name: Render chunk ${{ matrix.chunk }} (frames ${{ matrix.frames }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -136,6 +141,10 @@ jobs:
       - name: Install studio dependencies
         working-directory: aitrends/studio
         run: npm install
+
+      - name: Install Playwright system dependencies
+        working-directory: aitrends/studio
+        run: sudo npx playwright install-deps chromium
 
       - name: Install Playwright Chromium
         working-directory: aitrends/studio
