@@ -6,7 +6,8 @@
 #   per job. Measured local pace is ~50-65 s/frame at 1080x1920 Eevee, so a
 #   60-frame job should take roughly 30-65 min on a 4-core runner and the
 #   whole 1,248-frame video should land in roughly 40-70 min wall time,
-#   versus ~18-23 hours on the local machine.
+#   versus ~35-40+ hours on the local machine (measured per-scene pace
+#   32-193 s/frame at 1080x1920 Eevee).
 #
 # HOW IT IS TRIGGERED
 #   workflow_dispatch ONLY, with a required `jobs` JSON input. There is
@@ -16,9 +17,16 @@
 #   Each job: {"id","scene","blend_url","start","end","offset"}
 #     id        - short job id, e.g. "S5-03" (used in artifact names)
 #     scene     - scene file stem, e.g. "scene5"
-#     blend_url - direct download URL of the scene .blend, a GitHub Release
-#                 asset, e.g.
-#                 https://github.com/lolbrodiesus-design/remotion-videos/releases/download/zackd-blends-v1/scene5.blend
+#     blend_url - download URL of the scene .blend: a PUBLIC Google Drive
+#                 uc link, e.g.
+#                 https://drive.google.com/uc?id=1TLyLN3n5Yi9yXZf-2_V0LWDuRVH7FDol
+#                 (downloaded with gdown, which handles Drive's large-file
+#                 warning page). A GitHub Release asset URL also works.
+#                 NOTE 2026-11-21: the Release route was ABANDONED — the
+#                 browser's file-upload tool only accepts files granted to
+#                 the task, and 126-241 MB .blends exceed the grant size
+#                 limit, so the .blends can never be uploaded to a Release
+#                 that way. Drive uc links are the route.
 #     start/end - LOCAL frame numbers inside the .blend (each scene file
 #                 starts at frame 1)
 #     offset    - added to local frame numbers to get GLOBAL timeline frames
@@ -28,16 +36,20 @@
 #   1. This file is in the repo at .github/workflows/blender-zackd-render.yml.
 #      It must reach the repo via the GitHub WEBSITE, never the API — the
 #      Muse GitHub App lacks the workflows permission and the API 403s.
-#   2. Every scene .blend is uploaded as a Release asset under tag
-#      zackd-blends-v1 (see pipeline/upload_blends.sh). The .blends are
-#      126-241 MB each — over the 100 MB Contents-API limit — so Release
-#      assets are the only route.
+#   2. Every scene .blend is in the public Drive folder 'zackd-scenes'
+#      (folder 1zTXyYI9m2V0yVB8_LuA_PuRglqDFp9Xy, shared "anyone with the
+#      link") — scene5.blend sits in Drive root (file
+#      1TLyLN3n5Yi9yXZf-2_V0LWDuRVH7FDol, also public). Jobs pass the
+#      Drive uc link (https://drive.google.com/uc?id=<FILE_ID>) as
+#      blend_url; the runner downloads it with gdown. The .blends are
+#      126-241 MB each — over the 100 MB Contents-API limit — and the
+#      browser cannot upload them to a Release (grant size limit), so
+#      Drive links are the only route.
 #   3. Every scene .blend is render-ready: engine BLENDER_EEVEE, resolution
 #      1080x1920 at 100%, 30 fps, PNG output, and NO unpacked external
 #      images. The workflow re-checks this per job and FAILS LOUDLY on any
-#      mismatch (see "Verify render settings"). Known gaps at time of
-#      writing (2026-11-21): scene3 has 2 unpacked images, scene5/scene6
-#      are still 540x960 — see pipeline/DEPENDENCY_CHECK.md.
+#      mismatch (see "Verify render settings"). All 6 scenes verified
+#      GREEN 2026-11-21 ~02:45 IST (see pipeline/DEPENDENCY_CHECK.md).
 #
 # ARTIFACTS
 #   Per job:  zackd-<id>  (global-numbered PNG frames + timing-<id>.txt)
@@ -60,7 +72,7 @@ on:
   workflow_dispatch:
     inputs:
       jobs:
-        description: 'JSON array of render jobs: [{"id":"S5-01","scene":"scene5","blend_url":"https://github.com/lolbrodiesus-design/remotion-videos/releases/download/zackd-blends-v1/scene5.blend","start":1,"end":60,"offset":720}]'
+        description: 'JSON array of render jobs: [{"id":"S5-01","scene":"scene5","blend_url":"https://drive.google.com/uc?id=1TLyLN3n5Yi9yXZf-2_V0LWDuRVH7FDol","start":1,"end":60,"offset":720}]'
         required: true
         type: string
 
@@ -111,7 +123,11 @@ jobs:
       - name: Download scene .blend
         run: |
           set -euo pipefail
-          curl -fsSL -o scene.blend "${{ matrix.job.blend_url }}"
+          # Drive uc links serve a virus-scan warning page for files >100 MB;
+          # plain curl would download that HTML page, so use gdown, which
+          # handles the confirm token automatically.
+          python3 -m pip install -q gdown
+          python3 -m gdown "${{ matrix.job.blend_url }}" -O scene.blend
           SIZE=$(stat -c%s scene.blend)
           echo "scene.blend bytes: $SIZE"
           test "$SIZE" -gt 1000000 || { echo "Blend download too small — bad URL? ${{ matrix.job.blend_url }}"; exit 1; }
