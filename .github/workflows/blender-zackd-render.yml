@@ -112,7 +112,23 @@ jobs:
             echo "Blender 4.0.2 restored from cache"
           else
             cd /tmp
-            curl -fsSL -o blender-4.0.2.tar.xz https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
+            UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+            # download.blender.org 403s GitHub runners (Cloudflare) — try it
+            # first, then fall back to plain mirrors. The sha256 below
+            # verifies the file no matter which source served it.
+            for U in \
+              "https://download.blender.org/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz" \
+              "https://mirrors.ocf.berkeley.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz" \
+              "https://ftp.nluug.nl/pub/graphics/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz"; do
+              echo "Trying $U"
+              if curl -fsSL -A "$UA" -o blender-4.0.2.tar.xz "$U"; then
+                echo "Downloaded from $U"
+                break
+              fi
+              echo "Failed: $U"
+              rm -f blender-4.0.2.tar.xz
+            done
+            test -s blender-4.0.2.tar.xz || { echo "ALL BLENDER DOWNLOAD SOURCES FAILED"; exit 1; }
             echo "5583a5588736da8858c522ef17fff5d73be59c47a6fe91ad29c6f3263e22086a  blender-4.0.2.tar.xz" | sha256sum -c -
             tar -xf blender-4.0.2.tar.xz
             rm blender-4.0.2.tar.xz
