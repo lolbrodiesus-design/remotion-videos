@@ -1,0 +1,157 @@
+# aiTrends White Cloaks (30s) — split render on 20 GitHub runners.
+# Phase 1 package only: this file is PREPARED here, it must be uploaded through
+# the GitHub website (the Muse GitHub App has no workflows permission for API
+# pushes). Do NOT push it via the API. Trigger is workflow_dispatch only, so
+# uploading it does not start a run; dispatch by hand from the Actions tab.
+#
+# How it works: TOTAL_FRAMES = ceil(30.44 * 24) = 731 frames (player.js:
+# TOTAL_FRAMES = Math.ceil(story.duration * fps)). The 731 frames are split
+# into 20 contiguous chunks (11 x 37 frames, 9 x 36 frames). Each job renders
+# exactly one chunk with `node render.mjs --project ... --from F --to T`,
+# where from/to are frame/24 in seconds to 6 decimals, so round(from*24) and
+# round(to*24) land exactly on the boundary frames — no dropped or duplicated
+# frames at the joins. Each job uploads its chunk as artifact chunk-KK.
+# The join (ffmpeg concat) and the music/SFX mix happen LOCALLY after all 20
+# artifacts are downloaded. No Whisper/faster-whisper on runners (the
+# voiceover is already transcribed) and no audio work on runners (silent video).
+#
+# After the run: download all 20 artifacts, verify every chunk's frame count
+# (ffprobe), concat in order 00..19, run audio/mix.py locally, QC and deliver.
+
+name: aiTrends White Cloaks (30s, 20 parallel chunks)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  render:
+    name: Render chunk ${{ matrix.chunk }} (frames ${{ matrix.frames }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chunk: "00"
+            frames: "0-36"
+            from: "0.000000"
+            to: "1.541667"
+          - chunk: "01"
+            frames: "37-73"
+            from: "1.541667"
+            to: "3.083333"
+          - chunk: "02"
+            frames: "74-110"
+            from: "3.083333"
+            to: "4.625000"
+          - chunk: "03"
+            frames: "111-147"
+            from: "4.625000"
+            to: "6.166667"
+          - chunk: "04"
+            frames: "148-184"
+            from: "6.166667"
+            to: "7.708333"
+          - chunk: "05"
+            frames: "185-221"
+            from: "7.708333"
+            to: "9.250000"
+          - chunk: "06"
+            frames: "222-258"
+            from: "9.250000"
+            to: "10.791667"
+          - chunk: "07"
+            frames: "259-295"
+            from: "10.791667"
+            to: "12.333333"
+          - chunk: "08"
+            frames: "296-332"
+            from: "12.333333"
+            to: "13.875000"
+          - chunk: "09"
+            frames: "333-369"
+            from: "13.875000"
+            to: "15.416667"
+          - chunk: "10"
+            frames: "370-406"
+            from: "15.416667"
+            to: "16.958333"
+          - chunk: "11"
+            frames: "407-442"
+            from: "16.958333"
+            to: "18.458333"
+          - chunk: "12"
+            frames: "443-478"
+            from: "18.458333"
+            to: "19.958333"
+          - chunk: "13"
+            frames: "479-514"
+            from: "19.958333"
+            to: "21.458333"
+          - chunk: "14"
+            frames: "515-550"
+            from: "21.458333"
+            to: "22.958333"
+          - chunk: "15"
+            frames: "551-586"
+            from: "22.958333"
+            to: "24.458333"
+          - chunk: "16"
+            frames: "587-622"
+            from: "24.458333"
+            to: "25.958333"
+          - chunk: "17"
+            frames: "623-658"
+            from: "25.958333"
+            to: "27.458333"
+          - chunk: "18"
+            frames: "659-694"
+            from: "27.458333"
+            to: "28.958333"
+          - chunk: "19"
+            frames: "695-730"
+            from: "28.958333"
+            to: "30.458333"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Install studio dependencies
+        working-directory: aitrends/studio
+        run: npm install
+
+      - name: Install Playwright Chromium
+        working-directory: aitrends/studio
+        run: npx playwright install chromium
+
+      - name: Render chunk ${{ matrix.chunk }}
+        working-directory: aitrends/studio
+        run: |
+          set -euo pipefail
+          node render.mjs --project ../white-cloaks-30s/project --from ${{ matrix.from }} --to ${{ matrix.to }} --out chunk_${{ matrix.chunk }}.mp4
+          ls -lh chunk_${{ matrix.chunk }}.mp4
+          ffprobe -v error -show_entries format=duration -show_entries stream=codec_name,width,height,r_frame_rate -of default=noprint_wrappers=1 chunk_${{ matrix.chunk }}.mp4
+
+      - name: Upload chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.chunk }}
+          path: aitrends/studio/chunk_${{ matrix.chunk }}.mp4
+          retention-days: 7
