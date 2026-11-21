@@ -1,0 +1,161 @@
+# Remotion White Cloaks (30s) — split render on 20 GitHub runners.
+# This file is PREPARED here; it must be uploaded through the GitHub website
+# (the Muse GitHub App has no workflows permission for API pushes). Do NOT push
+# it via the API. Trigger is workflow_dispatch only, so uploading it does not
+# start a run; dispatch by hand from the Actions tab.
+#
+# What it renders: the Remotion remake of the White Cloaks 30s short
+# (remotion/white-cloaks/ in this repo) — same 12 shots, same story and
+# timing as the aiTrends build, rebuilt in Remotion 4.0.545 so the two renders
+# can be compared. Composition WhiteCloaks, 1920x1080, 24fps, 731 frames
+# (30.44s). The render is silent video only: the VO/music/SFX mix happens
+# LOCALLY afterwards with audio/mix.py, same as the aiTrends flow.
+#
+# How it works: TOTAL_FRAMES = 731. The 731 frames are split into 20
+# contiguous chunks (11 x 37 frames, 9 x 36 frames). Each job renders exactly
+# one chunk with `npx remotion render src/index.tsx WhiteCloaks
+# chunk_KK.mp4 --frames=F-T` where F-T is the INCLUSIVE frame range, so the
+# chunks join with no dropped or duplicated frames. Each frame is computed
+# from the shot definitions only (transitions draw the previous shot on
+# demand), so chunks have no inter-dependencies — a chunk starting
+# mid-transition renders correctly. Each job uploads its chunk as artifact
+# chunk-KK. The join (ffmpeg concat) and the music/SFX mix happen LOCALLY
+# after all 20 artifacts are downloaded.
+#
+# Browser: remotion.config.ts uses the local Playwright headless shell only
+# when that path exists; on runners it falls back to Remotion's own browser,
+# so the workflow runs `npx remotion browser install chrome` first.
+# Fonts: the 5 woff2 files in remotion/white-cloaks/public/fonts/ MUST be in
+# the checkout (loaded via @remotion/fonts + delayRender); without them the
+# text falls back to serif glyphs.
+#
+# runs-on is PINNED to ubuntu-24.04 deliberately — never ubuntu-latest.
+# Lesson from the aiTrends run #1 (2026-11-22): ubuntu-latest now resolves to
+# 26.04, and Playwright 1.56 / the Remotion browser do not support Chromium
+# on ubuntu26.04-x64, so all 20 jobs failed at the browser install step.
+# ubuntu-24.04 is the supported version (and the version this project was
+# built and verified on locally).
+#
+# After the run: download all 20 artifacts, verify every chunk's frame count
+# (ffprobe), concat in order 00..19, run audio/mix.py locally, QC and deliver.
+
+name: Remotion White Cloaks (30s, 20 parallel chunks)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  render:
+    name: Render chunk ${{ matrix.chunk }} (frames ${{ matrix.frames }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chunk: "00"
+            frames: "0-36"
+            count: "37"
+          - chunk: "01"
+            frames: "37-73"
+            count: "37"
+          - chunk: "02"
+            frames: "74-110"
+            count: "37"
+          - chunk: "03"
+            frames: "111-147"
+            count: "37"
+          - chunk: "04"
+            frames: "148-184"
+            count: "37"
+          - chunk: "05"
+            frames: "185-221"
+            count: "37"
+          - chunk: "06"
+            frames: "222-258"
+            count: "37"
+          - chunk: "07"
+            frames: "259-295"
+            count: "37"
+          - chunk: "08"
+            frames: "296-332"
+            count: "37"
+          - chunk: "09"
+            frames: "333-369"
+            count: "37"
+          - chunk: "10"
+            frames: "370-406"
+            count: "37"
+          - chunk: "11"
+            frames: "407-442"
+            count: "36"
+          - chunk: "12"
+            frames: "443-478"
+            count: "36"
+          - chunk: "13"
+            frames: "479-514"
+            count: "36"
+          - chunk: "14"
+            frames: "515-550"
+            count: "36"
+          - chunk: "15"
+            frames: "551-586"
+            count: "36"
+          - chunk: "16"
+            frames: "587-622"
+            count: "36"
+          - chunk: "17"
+            frames: "623-658"
+            count: "36"
+          - chunk: "18"
+            frames: "659-694"
+            count: "36"
+          - chunk: "19"
+            frames: "695-730"
+            count: "36"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Install project dependencies
+        working-directory: remotion/white-cloaks
+        run: npm ci
+
+      - name: Install Remotion browser
+        working-directory: remotion/white-cloaks
+        run: npx remotion browser install chrome
+
+      - name: Render chunk ${{ matrix.chunk }}
+        working-directory: remotion/white-cloaks
+        run: |
+          set -euo pipefail
+          npx remotion render src/index.tsx WhiteCloaks chunk_${{ matrix.chunk }}.mp4 --frames=${{ matrix.frames }}
+          ls -lh chunk_${{ matrix.chunk }}.mp4
+          ffprobe -v error -show_entries format=duration -show_entries stream=codec_name,width,height,r_frame_rate -of default=noprint_wrappers=1 chunk_${{ matrix.chunk }}.mp4
+          frames=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of csv=p=0 chunk_${{ matrix.chunk }}.mp4)
+          echo "frames=$frames expected=${{ matrix.count }}"
+          [ "$frames" = "${{ matrix.count }}" ]
+
+      - name: Upload chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.chunk }}
+          path: remotion/white-cloaks/chunk_${{ matrix.chunk }}.mp4
+          retention-days: 7
