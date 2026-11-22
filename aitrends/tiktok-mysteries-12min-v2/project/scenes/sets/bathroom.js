@@ -59,6 +59,10 @@ export function bathroom(g, t, cam, o = {}) {
     // towel rail, far right
     seg(g, [[CX + V(760, 560), GY - V(180, 260)], [CX + V(900, 680), GY - V(180, 260)]], 6, '#4a4550');
     rr(g, CX + V(770, 570), GY - V(180, 260), V(110, 90), V(150, 200), 6); g.fillStyle = '#7fa3b8'; g.fill();
+    // old radiator, bottom-left under the mirror
+    const rx = CX - V(820, 620), ry = GY - V(170, 240);
+    for (let i = 0; i < 6; i++) { rr(g, rx + i * 34, ry, 24, 140, 8); g.fillStyle = i % 2 ? '#6a6a72' : '#55555e'; g.fill(); }
+    seg(g, [[rx - 20, ry + 140], [rx + 220, ry + 140]], 6, '#4a444e');
   });
   layer(g, cam, 0.9, (g) => {                                     // floor + sink
     g.fillStyle = linGrad(g, 0, GY, 0, GY + 400, [shade(M.floor, -0.1), shade(M.dark, -0.2)]); g.fillRect(-E.W, GY, E.W * 3, E.H * 2);
