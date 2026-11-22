@@ -1,0 +1,239 @@
+# aiTrends 20-VM Render (generic) — split any aiTrends project across 20
+# GitHub runners, then merge, mux and verify in a final job.
+#
+# PREPARED FILE — do NOT push via the API. The Muse GitHub App has no
+# workflows permission, so this file goes in through the GitHub website
+# (repo -> .github/workflows/ -> Add file -> Create new file, paste this).
+# Trigger is workflow_dispatch only, so uploading it does NOT start a run;
+# dispatch by hand from the Actions tab.
+#
+# How it works:
+#   1. prepare: computes the chunk ranges from the project's shots.json
+#      (aitrends/tools/split_chunks.py) and emits a dynamic matrix — the
+#      same frame math as the proven White Cloaks run (total =
+#      round(duration*fps) — reproduces the delivered file's exact frame
+#      count; chunks cover [0, total) contiguously, --from/--to in seconds
+#      to 6 decimals so render.mjs lands exactly on frame boundaries).
+#   2. render: 20 jobs in parallel (matrix), each renders exactly one chunk
+#      with `node render.mjs --project <project> --from X --to Y`, verifies
+#      its frame count, and uploads it as artifact chunk-<run>-KK.
+#   3. merge: downloads all 20 chunks + the manifest, concatenates
+#      (stream copy), muxes the SFX-only audio when the `audio` input is
+#      set, and verifies (decode clean, frame count, duration) with
+#      aitrends/tools/merge_chunks.py. Uploads final-<run>.mp4 + verify.json.
+#
+# HARD RULES (lessons from the White Cloaks run #1, 2026-11-22):
+#   - runs-on is PINNED to ubuntu-24.04. Never ubuntu-latest: it now
+#     resolves to 26.04 and Playwright 1.56 does not support Chromium on
+#     ubuntu26.04-x64, so all 20 jobs failed at the browser install step.
+#   - Trigger is workflow_dispatch ONLY. Never add a paths-limited trigger:
+#     a trigger whose paths cover only the workflow file silently never
+#     fires, and pushes touching only project files never start a run.
+#   - Upload this workflow file LAST. Pushing it cannot start a run
+#     (dispatch-only), but keep the habit from the Remotion workflow.
+#   - The SFX/VO mix is NOT done on runners: render is silent video only.
+#     The merge job only muxes a pre-made SFX-only audio file if you point
+#     `audio` at one already in the repo (stage it with package_project.py
+#     --audio). Otherwise mux locally with audio/mix.py after download.
+#
+# Repo layout the workflow expects (see github-20vm/tools/package_project.py):
+#   aitrends/studio/            render.mjs, player.html, package.json, engine/
+#   aitrends/<slug>/project/    config.json, story/shots.json, scenes/
+#   aitrends/tools/             split_chunks.py, merge_chunks.py
+
+name: aiTrends 20-VM Render
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Repo path to the project dir, e.g. aitrends/tiktok-mysteries-12min/project"
+        required: true
+        default: "aitrends/tiktok-mysteries-12min/project"
+      duration:
+        description: "Project duration in seconds (must match story/shots.json)"
+        required: true
+        default: "661.918"
+      fps:
+        description: "Frames per second"
+        required: false
+        default: "24"
+      chunks:
+        description: "Number of parallel chunks (max 20)"
+        required: false
+        default: "20"
+      preset:
+        description: "x264 preset for the chunk renders"
+        required: false
+        default: "veryfast"
+      crf:
+        description: "x264 CRF for the chunk renders"
+        required: false
+        default: "18"
+      audio:
+        description: "Repo path to a pre-made SFX-only audio file to mux (empty = silent video)"
+        required: false
+        default: ""
+      run_name:
+        description: "Short name for artifacts, lowercase letters/digits/dashes only"
+        required: false
+        default: "video"
+
+permissions:
+  contents: read
+  actions: write
+
+# Serialize runs with the same name so two dispatches never fight over
+# the same artifact names.
+concurrency:
+  group: aitrends-20vm-${{ inputs.run_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare chunk matrix
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.split.outputs.matrix }}
+      total_frames: ${{ steps.split.outputs.total_frames }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Split into chunks
+        id: split
+        run: |
+          set -euo pipefail
+          python3 aitrends/tools/split_chunks.py \
+            --shots "${{ inputs.project }}/story/shots.json" \
+            --duration "${{ inputs.duration }}" \
+            --fps "${{ inputs.fps }}" \
+            --chunks "${{ inputs.chunks }}" \
+            --format github-matrix --out chunks.json | tee /tmp/matrix.json
+          # github-matrix output is one single-line JSON object: safe for GITHUB_OUTPUT.
+          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          echo "total_frames=$(python3 -c "import json;print(json.load(open('chunks.json'))['total_frames'])")" >> "$GITHUB_OUTPUT"
+          python3 aitrends/tools/split_chunks.py \
+            --shots "${{ inputs.project }}/story/shots.json" \
+            --duration "${{ inputs.duration }}" \
+            --fps "${{ inputs.fps }}" \
+            --chunks "${{ inputs.chunks }}" --format table
+
+      - name: Upload chunks manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunks-manifest-${{ inputs.run_name }}
+          path: chunks.json
+          retention-days: 7
+
+  render:
+    name: Render chunk ${{ matrix.chunk }} (frames ${{ matrix.frames }})
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Install studio dependencies
+        working-directory: aitrends/studio
+        run: npm install
+
+      - name: Install Playwright system dependencies
+        working-directory: aitrends/studio
+        run: sudo npx playwright install-deps chromium
+
+      - name: Install Playwright Chromium
+        working-directory: aitrends/studio
+        run: npx playwright install chromium
+
+      - name: Render chunk ${{ matrix.chunk }}
+        working-directory: aitrends/studio
+        run: |
+          set -euo pipefail
+          node render.mjs \
+            --project "${{ github.workspace }}/${{ inputs.project }}" \
+            --from ${{ matrix.from }} --to ${{ matrix.to }} \
+            --preset "${{ inputs.preset }}" --crf "${{ inputs.crf }}" \
+            --out "${{ github.workspace }}/aitrends/studio/chunk_${{ matrix.chunk }}.mp4"
+          ls -lh chunk_${{ matrix.chunk }}.mp4
+          ffprobe -v error -show_entries format=duration \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -of default=noprint_wrappers=1 chunk_${{ matrix.chunk }}.mp4
+          frames=$(ffprobe -v error -count_frames -select_streams v:0 \
+            -show_entries stream=nb_read_frames -of csv=p=0 chunk_${{ matrix.chunk }}.mp4)
+          echo "frames=$frames expected=${{ matrix.count }}"
+          [ "$frames" = "${{ matrix.count }}" ]
+
+      - name: Upload chunk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ inputs.run_name }}-${{ matrix.chunk }}
+          path: aitrends/studio/chunk_${{ matrix.chunk }}.mp4
+          retention-days: 7
+
+  merge:
+    name: Merge, mux and verify
+    needs: [prepare, render]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Download chunks manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: chunks-manifest-${{ inputs.run_name }}
+          path: merge/
+
+      - name: Download all chunk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: chunk-${{ inputs.run_name }}-*
+          merge-multiple: true
+          path: merge/chunks/
+
+      - name: Merge and verify
+        run: |
+          set -euo pipefail
+          ls merge/chunks/
+          ARGS="--dir merge/chunks --manifest merge/chunks.json --out final-${{ inputs.run_name }}.mp4 --report verify.json"
+          if [ -n "${{ inputs.audio }}" ]; then
+            ARGS="$ARGS --audio ${{ inputs.audio }}"
+          fi
+          python3 aitrends/tools/merge_chunks.py $ARGS
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-${{ inputs.run_name }}
+          path: |
+            final-${{ inputs.run_name }}.mp4
+            verify.json
+          retention-days: 7
