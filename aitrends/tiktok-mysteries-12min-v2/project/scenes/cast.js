@@ -1,0 +1,10 @@
+// cast.js — one outfit per recurring character. Signature colour = identity; keep it identical in every shot.
+export const SAMANTHA = { top: 'hoodie', color: '#f29ac0', head: 'beanie', headColor: '#1b1b22' };   // Hartsoe, 26 — black beanie (user: pink hair → black, 2026-11-22)
+export const JASON = { top: 'tshirt', color: '#3a6ea5', head: 'none' };                            // TikTok user, Google Earth — blue tee
+export const LEXY = { top: 'tshirt', color: '#3fb950', head: 'cap', headColor: '#3fb950' };        // college counsellor — green cap
+export const MERIDITH = { top: 'hoodie', color: '#d64a33', head: 'bun', headColor: '#d64a33' };    // nurse/midwife, Iowa — red-orange hoodie
+export const SHAWNE = { top: 'tracksuit', color: '#8a5ad6', head: 'ponytail', headColor: '#8a5ad6' }; // @thebeardedmom — purple tracksuit
+export const TEEN = { top: 'tshirt', color: '#f2c21a', head: 'cap', headColor: '#f2c21a' };        // lead teen, Alki Beach — yellow cap
+export const GABBY = { top: 'tshirt', color: '#f2f2f2', head: 'headband', headColor: '#2bb3a3' };   // road trip — teal headband
+export const BRIAN = { top: 'trench', color: '#111111', head: 'fedora', headColor: '#111111' };    // by the van, half in shadow
+export const CAST = [SAMANTHA, JASON, LEXY, MERIDITH, SHAWNE, TEEN, GABBY, BRIAN];
