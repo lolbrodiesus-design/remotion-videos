@@ -56,7 +56,8 @@ registerShot('s003', { draw(g, t, info) {
 
 // s004 — insert, top-down on wet asphalt: bandana + fallen cap beside a chalk outline
 registerShot('s004', { draw(g, t, info) {
-  blurLayer(g, 10, (g) => street(g, t, { z: 1.9, x: 120, y: 80 }));
+  // slow creep on the blurred background so the insert is never a still photo
+  blurLayer(g, 10, (g) => street(g, t, { z: 1.9 + 0.06 * (t / info.dur), x: 120 + 26 * (t / info.dur), y: 80 + 16 * (t / info.dur) }));
   veil(g, '#14101e', 0.42);
   const M = mood('dusk'), cx = E.W / 2, cy = E.H * 0.52;
   // wet asphalt sheen
@@ -74,9 +75,9 @@ registerShot('s004', { draw(g, t, info) {
   g.save(); g.translate(cx - 260, cy + 150); g.rotate(-0.4);
   g.fillStyle = '#3fb950'; g.beginPath(); g.ellipse(0, 0, 86, 46, 0, Math.PI, Math.PI * 2); g.fill();
   seg(g, [[20, -6], [120, 2]], 16, shade('#3fb950', -0.3)); g.restore();
-  // rain rings spreading on the wet asphalt
-  for (let i = 0; i < 3; i++) FX.rings(g, cx + [-320, 120, 380][i], cy + [-140, 180, -60][i], t + i * 0.4, { count: 1, r0: 10, r1: 150, color: '#b8c8ff', a: 0.35, speed: 0.9 });
-  FX.rain(g, t, { count: 120, a: 0.22, timeScale: 0.6 });
+  // rain rings spreading on the wet asphalt — thick, bright, always moving
+  for (let i = 0; i < 3; i++) FX.rings(g, cx + [-320, 120, 380][i], cy + [-140, 180, -60][i], t + i * 0.4, { count: 2, r0: 10, r1: 170, color: '#b8c8ff', a: 0.5, speed: 1.1, w: 3 });
+  FX.rain(g, t, { count: 260, a: 0.34, timeScale: 1, len: 60 });
 } });
 
 // s005 — CJ with a duffel walks toward his mother's house; a taxi pulls away
@@ -106,7 +107,7 @@ registerShot('s005', { draw(g, t, info) {
 
 // s006 — porch: two plain figures slumped on the steps; CJ stands small, camera pulls back
 registerShot('s006', { draw(g, t, info) {
-  const cam = { z: 1.1 - 0.1 * ease.inOut(t / info.dur), x: 20 * ease.inOut(t / info.dur) };
+  const cam = { z: 1.1 - 0.1 * ease.inOut(t / info.dur), x: lerp(30, -50, ease.inOut(t / info.dur)) };
   const { GY, M } = home(g, t, cam, { variant: 'room' });
   layer(g, cam, 1, (g) => {
     // two plain-ink figures slumped on the steps, doing nothing
